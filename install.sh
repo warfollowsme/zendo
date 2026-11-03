@@ -91,13 +91,18 @@ source "$DEST/bin/_lib.sh"
 
 AUTOCONFIG="--autoconfig"
 if ! detect_app_resources >/dev/null 2>&1; then
-  if zen_flatpak; then
+  if [ "$OS" = linux ] && image="$(find_appimage)"; then
+    say "Zen AppImage: $image"
+    echo "An AppImage is read-only, so Zendo runs an unpacked copy of it (~400 MB, $(tilde "$ZEN_APPIMAGE_DIR"))."
+    echo "Your AppImage stays as is; replace it with a new version as usual — Zendo unpacks it again."
+    appimage_unpack "$image" || die "Could not unpack $image"
+  elif zen_flatpak; then
     warn "Zen from Flathub keeps its program folder read-only: Zendo installs themes, mods and site styles, but not the scripts (window layout, AI assistant). For everything, use Zen from the tarball or your distro's package."
     AUTOCONFIG=""
   elif [ "$OS" = mac ]; then
     die "Zen is not installed. Get it at https://zen-browser.app (or: brew install --cask zen), launch it once, then run this command again."
   else
-    die "Zen is not found. Install it from https://zen-browser.app, launch it once, then run this command again (or set ZEN_APP=/path/to/zen-folder)."
+    die "Zen is not found. Install it from https://zen-browser.app, launch it once, then run this command again (or set ZEN_APP=/path/to/zen-folder, or ZEN_APPIMAGE=/path/to/zen.AppImage)."
   fi
 fi
 if ! active_profile >/dev/null 2>&1; then

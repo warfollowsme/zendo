@@ -70,10 +70,16 @@ Zendo finds Zen via `zen` / `zen-browser` in `PATH` or in `/opt/zen`,
 yours is elsewhere: `ZEN_APP=/path/to/zen-folder` before the command (the folder
 with `application.ini`).
 
-**Flatpak and AppImage.** Their program folder is read-only, so the script
-loader can't be installed: with Flatpak Zen, Zendo sets up only themes, mods
-and site styles — no window layout, AI assistant or other scripts. For the full
-Zendo, use the tarball or a distro package.
+**AppImage.** It is read-only, so Zendo runs an unpacked copy of it
+(`~/.local/share/zendo/.kit/zen-appimage`, ~400 MB) and leaves your AppImage as
+is. The installer finds it in `~/Applications`, `~/AppImages`, `~/Downloads`
+and similar places (or `ZEN_APPIMAGE=/path/to/zen.AppImage`). To update Zen,
+replace the AppImage as usual: Zendo unpacks the new one on the next launch.
+
+**Flatpak.** Its program folder is read-only and can't be worked around, so
+Zendo sets up only themes, mods and site styles — no window layout, AI
+assistant or other scripts. For the full Zendo, use the tarball, AppImage or a
+distro package.
 
 ### Windows
 

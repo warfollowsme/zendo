@@ -43,6 +43,17 @@ if zen_running; then
   open_zen
 fi
 
+# Zen as an AppImage: a replaced AppImage (Zen updated) is unpacked again; the
+# loader check below then puts the script loader into the fresh copy.
+if ! is_macos && image="$(cat "$KIT_STATE/appimage" 2>/dev/null)" && [ -f "$image" ] && ! appimage_current "$image"; then
+  info "Zen AppImage changed — unpacking $image"
+  if appimage_unpack "$image"; then
+    RES="$ZEN_APPIMAGE_DIR"
+  else
+    alert "Could not unpack $image (details: $KIT_STATE/launch.log). Zen opens the previous version."
+  fi
+fi
+
 # Script loader in the Zen app (not possible for Flatpak Zen: its folder is read-only).
 if [ -n "$RES" ] && { ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js" ||
    ! cmp -s "$RES/defaults/pref/config-prefs.js" "$KIT_ROOT/program/defaults/pref/config-prefs.js"; }; then

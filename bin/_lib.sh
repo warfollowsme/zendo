@@ -69,7 +69,9 @@ detect_profile() {
 
 # The profile Zen opens on startup: installs.ini → profiles.ini.
 # May differ from the saved one if Zen switched to another profile
-# (e.g. "Default (release)" appeared after a reinstall).
+# (e.g. "Default (release)" appeared after a reinstall). Zen's AppImage starts
+# with MOZ_LEGACY_PROFILES=1 and ignores installs.ini: its profile is the one
+# marked Default=1 in profiles.ini.
 active_profile() {
   if [ -n "${ZEN_PROFILE:-}" ]; then
     printf '%s\n' "$ZEN_PROFILE"; return 0
@@ -77,7 +79,7 @@ active_profile() {
   local dir rel
   while IFS= read -r dir; do
     [ -d "$dir" ] || continue
-    if [ -f "$dir/installs.ini" ]; then
+    if [ -f "$dir/installs.ini" ] && [ ! -f "$KIT_STATE/appimage" ]; then
       rel="$(ini_get "$dir/installs.ini" '^[[]' Default)"
       if [ -n "$rel" ] && [ -d "$dir/$rel" ]; then
         printf '%s\n' "$dir/$rel"; return 0
@@ -137,8 +139,12 @@ detect_app_resources() {
       fi
     done
   else
-    # Linux: the folder with application.ini — next to the zen binary in PATH
-    # (often a symlink), or a known install location.
+    # Linux: the unpacked AppImage (see appimage_unpack), the folder with
+    # application.ini next to the zen binary in PATH (often a symlink), or a
+    # known install location.
+    if [ -f "$KIT_STATE/appimage" ] && [ -f "$ZEN_APPIMAGE_DIR/application.ini" ]; then
+      printf '%s\n' "$ZEN_APPIMAGE_DIR"; return 0
+    fi
     local bin dir
     for bin in "$(command -v zen 2>/dev/null || true)" "$(command -v zen-browser 2>/dev/null || true)"; do
       [ -n "$bin" ] || continue
@@ -163,6 +169,52 @@ zen_flatpak() {
   ! is_macos && command -v flatpak >/dev/null 2>&1 && flatpak info app.zen_browser.zen >/dev/null 2>&1
 }
 
+# ---- Linux: Zen as an AppImage
+# An AppImage is read-only, so the script loader can't go into it. Zendo runs an
+# unpacked copy instead ($ZEN_APPIMAGE_DIR) and leaves the AppImage as is; when
+# the AppImage is replaced (a new Zen), bin/launch unpacks it again.
+ZEN_APPIMAGE_DIR="$KIT_STATE/zen-appimage"
+
+# Zen's AppImage: ZEN_APPIMAGE, the one saved at install, or one in a usual place.
+find_appimage() {
+  local dir f
+  if [ -n "${ZEN_APPIMAGE:-}" ]; then
+    [ -f "$ZEN_APPIMAGE" ] && { printf '%s\n' "$ZEN_APPIMAGE"; return 0; }
+    return 1
+  fi
+  f="$(cat "$KIT_STATE/appimage" 2>/dev/null || true)"
+  [ -n "$f" ] && [ -f "$f" ] && { printf '%s\n' "$f"; return 0; }
+  for dir in "$HOME/Applications" "$HOME/AppImages" "$HOME/.local/bin" "$HOME/Downloads" "$HOME/Desktop" /opt; do
+    for f in "$dir"/[Zz]en*.[Aa]pp[Ii]mage; do
+      [ -f "$f" ] && { printf '%s\n' "$f"; return 0; }
+    done
+  done
+  return 1
+}
+
+# Whether the unpacked copy is of this very AppImage (size and modification time).
+appimage_current() {
+  [ -f "$ZEN_APPIMAGE_DIR/application.ini" ] &&
+    [ "$(cat "$ZEN_APPIMAGE_DIR.stamp" 2>/dev/null)" = "$(stat -c '%s %Y' "$1" 2>/dev/null)" ]
+}
+
+# Unpack the AppImage into $ZEN_APPIMAGE_DIR (a few seconds, no FUSE needed).
+appimage_unpack() {
+  local image="$1" tmp="$KIT_STATE/zen-appimage.tmp"
+  [ -x "$image" ] || { warn "$image is not executable: chmod +x \"$image\""; return 1; }
+  rm -rf "$tmp" && mkdir -p "$tmp"
+  if ! (cd "$tmp" && "$image" --appimage-extract >/dev/null 2>&1) || [ ! -f "$tmp/squashfs-root/application.ini" ]; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  rm -rf "$ZEN_APPIMAGE_DIR"
+  # newer AppImage runtimes unpack into AppDir, and squashfs-root is a link to it
+  mv "$(cd "$tmp/squashfs-root" && pwd -P)" "$ZEN_APPIMAGE_DIR"
+  rm -rf "$tmp"
+  stat -c '%s %Y' "$image" > "$ZEN_APPIMAGE_DIR.stamp"
+  printf '%s\n' "$image" > "$KIT_STATE/appimage"
+}
+
 # Run a program detached from this terminal: right away in its own session
 # (setsid -f), so closing the terminal (or the installer's) doesn't take Zen
 # with it. Without setsid -f (old util-linux) — nohup.
@@ -176,7 +228,10 @@ start_zen() {
   if is_macos; then
     res="$(detect_app_resources)" || return 1
     /usr/bin/open -a "$(cd "$res/../.." && pwd -P)"
-  elif res="$(detect_app_resources 2>/dev/null)" && [ -x "$res/zen" ]; then
+  elif res="$(detect_app_resources 2>/dev/null)" && [ "$res" = "$ZEN_APPIMAGE_DIR" ]; then
+    # as the AppImage itself would: its AppRun, with APPIMAGE for "default browser"
+    APPIMAGE="$(cat "$KIT_STATE/appimage")" detach "$res/AppRun"
+  elif [ -n "$res" ] && [ -x "$res/zen" ]; then
     detach "$res/zen"
   elif command -v zen-browser >/dev/null 2>&1; then
     detach zen-browser

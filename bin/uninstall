@@ -88,6 +88,10 @@ if [ "$AUTOCONFIG" = 1 ]; then
     ok "previous application config.js restored"
   fi
   [ "$DRY" = 0 ] && clear_startup_cache "$PROFILE"
+  if [ "$RES" = "$ZEN_APPIMAGE_DIR" ]; then # the unpacked AppImage is Zendo's own copy
+    run rm -rf "$ZEN_APPIMAGE_DIR" "$ZEN_APPIMAGE_DIR.stamp" "$KIT_STATE/appimage"
+    ok "unpacked Zen AppImage removed (your AppImage is untouched)"
+  fi
 fi
 
 # 4. Mark the backup as restored
