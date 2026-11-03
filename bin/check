@@ -97,6 +97,15 @@ if command -v node >/dev/null 2>&1; then
     js_checked=$((js_checked + 1))
     grep -q '// ==UserScript==' "$f" || fail "$(rel "$f"): missing // ==UserScript== header"
   done
+  # скрипты сайтов (JS/kit-site-scripts.sys.mjs) — домены в заголовке
+  for f in "$KIT_KIT_DIR"/sites/*.js "$ZENDO_USER"/sites/*.js; do
+    [ -e "$f" ] || continue
+    out="$(node --check "$f" 2>&1)" || fail "$(rel "$f"): $out"
+    js_checked=$((js_checked + 1))
+    grep -q '^// @domain' "$f" || fail "$(rel "$f"): missing // @domain in the ==UserScript== header"
+    kit_file sites "$(basename "$f" .js)" >/dev/null ||
+      fail "$(rel "$f"): needs a site style $(basename "$f" .js).css — the script is enabled with it"
+  done
   # модули для скриптов (actor'ы и т.п.) — без заголовка, только синтаксис
   while IFS= read -r f; do
     [ -n "$f" ] || continue

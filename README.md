@@ -79,7 +79,7 @@ bin/app                    # собрать Zendo.app
 |---|---|
 | `bin/theme` | список тем; `bin/theme <имя>` — включить, `bin/theme zen-default` — вернуть цвета Zen |
 | `bin/mod` | моды интерфейса; `bin/mod on <имя>` / `bin/mod off <имя>` |
-| `bin/site` | стили для сайтов; `bin/site on <имя>` / `bin/site off <имя>` |
+| `bin/site` | стили для сайтов (и их скрипты `<имя>.js`, если есть); `bin/site on <имя>` / `bin/site off <имя>` |
 | `bin/update` | обновить базу из GitHub |
 | `bin/sync` | собрать профиль заново — после того как добавил или удалил файл в личном слое |
 | `bin/restart` | перезапустить Zen; `--clear-cache` — после правок JS |
