@@ -171,10 +171,19 @@ export async function models(win, provider, key, url) {
     name: m.display_name || m.name || m.id,
     created: m.created_at || m.created || 0,
     tools: m.supported_parameters ? m.supported_parameters.includes("tools") : undefined,
+    images: m.architecture?.input_modalities ? m.architecture.input_modalities.includes("image") : undefined,
+    context: m.context_length,
+    batch: /batch/i.test(`${m.id} ${m.name || ""}`),
+    leaving: !!m.expiration_date,
   }));
   if (provider === "compatible") {
-    // the assistant works through tools: hide models that say they can't call them (OpenRouter tells)
-    list = list.filter(m => m.tools !== false).sort((a, b) => b.created - a.created || a.id.localeCompare(b.id));
+    // Hide what can't work as the assistant, when the server tells (OpenRouter does):
+    // no tools (it does everything through them), a context under 128k (instructions,
+    // AGENTS.md and page text alone take tens of thousands of tokens), batch
+    // variants (no live replies), models about to be removed.
+    list = list
+      .filter(m => m.tools !== false && !(m.context < 128000) && !m.batch && !m.leaving)
+      .sort((a, b) => b.created - a.created || a.id.localeCompare(b.id));
   }
   if (provider === "openai") {
     // chat models only: no embeddings, speech, images, etc.
@@ -562,8 +571,13 @@ export class CompatibleAgent {
     try {
       const content = await this.callTool(call.name, call.input || {});
       this.ui.toolDone(call.id, false);
+      // a text-only model (DeepSeek and many others) rejects the whole request with an image
+      const vision = cachedModels.compatible?.find(m => m.id === this.model)?.images !== false;
       const texts = content.map(c => {
         if (c.type === "image") {
+          if (!vision) {
+            return "(an image was returned, but this model doesn't take images — use page text instead)";
+          }
           images.push({ type: "image_url", image_url: { url: `data:${c.mimeType};base64,${c.data}` } });
           return "(image: see the next message)";
         }
