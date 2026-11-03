@@ -10,7 +10,9 @@
 #    and starts it.
 #
 # Variables: ZENDO_HOME — where to download, ZENDO_USER — personal layer
-# (default ~/.config/zendo), ZENDO_REPO — where to download from.
+# (default ~/.config/zendo), ZENDO_REPO — where to download from,
+# ZENDO_USER_REPO — your personal layer's repository, cloned into ZENDO_USER
+# (moving to another device; see bin/personal).
 set -euo pipefail
 
 REPO="${ZENDO_REPO:-https://github.com/warfollowsme/zendo.git}"
@@ -67,6 +69,19 @@ fi
 if ! active_profile >/dev/null 2>&1; then
   start_zen || true
   die "Zen has never been launched: it is opening now to create a profile. Quit it and run this command again."
+fi
+
+# Your personal layer from its own repository (another device): ZENDO_USER_REPO=<url>
+if [ -n "${ZENDO_USER_REPO:-}" ]; then
+  if [ -d "$ZENDO_USER/.git" ]; then
+    warn "$ZENDO_USER is already a git repository — kept as is (update it with bin/personal pull)"
+  elif [ -n "$(ls -A "$ZENDO_USER" 2>/dev/null)" ]; then
+    die "$ZENDO_USER already exists — move it away so your personal layer can be cloned there"
+  else
+    say "Downloading your personal layer to $ZENDO_USER"
+    git clone --quiet "$ZENDO_USER_REPO" "$ZENDO_USER" ||
+      die "Could not clone $ZENDO_USER_REPO (a private repository needs git access: gh auth login, or an SSH key)"
+  fi
 fi
 
 if zen_running; then

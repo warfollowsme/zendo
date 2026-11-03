@@ -116,6 +116,33 @@ By default the assistant writes your changes to the personal layer and commits
 each one separately — anything that didn't work out can always be reverted
 with `git revert`.
 
+### Several devices
+
+The personal layer is a git repository, so it moves between devices through a
+repository of your own — a private one on GitHub, for example:
+
+```sh
+gh repo create zendo-personal --private          # once, on the first device
+~/.local/share/zendo/bin/personal remote https://github.com/<you>/zendo-personal.git
+~/.local/share/zendo/bin/personal push
+```
+
+On a new device, install with your layer:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh |
+  ZENDO_USER_REPO=https://github.com/<you>/zendo-personal.git bash
+```
+
+(a private repository needs git access on that device: `gh auth login` or an SSH
+key). After that, `bin/personal push` sends your changes and `bin/personal pull`
+gets the ones made elsewhere.
+
+What moves: themes, mods, site styles and scripts, JS/CSS, `user.js`, the chosen
+theme and mods, `AGENTS.md`. What stays on each device (it lives in the Zen
+profile): each space's theme, the window layout, AI sign-in. Bookmarks,
+passwords and extensions are synced by Zen/Firefox itself.
+
 ## Commands
 
 From the base folder (`~/.local/share/zendo`):
@@ -126,6 +153,7 @@ From the base folder (`~/.local/share/zendo`):
 | `bin/mod` | UI mods; `bin/mod on <name>` / `bin/mod off <name>` |
 | `bin/site` | site styles (and their `<name>.js` scripts, if any); `bin/site on <name>` / `bin/site off <name>` |
 | `bin/update` | update the base from GitHub |
+| `bin/personal` | the personal layer's repository: `remote <url>`, `push`, `pull` (see [Several devices](#several-devices)) |
 | `bin/sync` | rebuild the profile — after adding or removing a file in the personal layer |
 | `bin/restart` | restart Zen; `--clear-cache` — after JS edits |
 | `bin/status` | what's connected, current theme and mods, Zen versions |

@@ -54,6 +54,7 @@ zendo/                        base
 │   ├── install / uninstall   connect / disconnect the project from the Zen profile
 │   ├── sync                  assemble the profile from the base and personal layer
 │   ├── update                update the base from GitHub
+│   ├── personal              share the personal layer between devices (its own git repo)
 │   ├── theme                 themes
 │   ├── mod                   browser UI mods
 │   ├── site                  styles for individual sites

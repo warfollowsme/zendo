@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Shares the personal layer ($ZENDO_USER) between devices through its own git
+# repository, e.g. a private GitHub one. The base is updated by bin/update.
+#   bin/personal                — where the layer is, its repository, what's not sent yet
+#   bin/personal remote <url>   — connect the layer to a repository
+#   bin/personal push ["note"]  — commit every change in the layer and send it
+#   bin/personal pull           — get changes from other devices and apply them
+#
+# A new device: clone the repository to ~/.config/zendo before installing, or
+# install with ZENDO_USER_REPO=<url> (install.sh clones it).
+# What's shared: themes, mods, site styles and scripts, JS/CSS, user.js, the chosen
+# theme and mods, AGENTS.md. Not shared (they live in the Zen profile): each space's
+# theme, the window layout, AI sign-in.
+source "$(dirname "$0")/_lib.sh"
+
+command -v git >/dev/null 2>&1 || die "git is not installed"
+[ -d "$ZENDO_USER/.git" ] || die "$ZENDO_USER is not a git repository — run bin/install"
+g() { git -C "$ZENDO_USER" "$@"; }
+
+need_remote() {
+  g remote get-url origin >/dev/null 2>&1 ||
+    die "The personal layer isn't connected to a repository: bin/personal remote <url>"
+}
+
+case "${1:-}" in
+  "")
+    info "Personal layer: ${C_BOLD}$ZENDO_USER${C_RESET}"
+    if url="$(g remote get-url origin 2>/dev/null)"; then
+      info "Repository: $url"
+      g fetch --quiet origin 2>/dev/null || warn "could not reach the repository"
+      if g rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+        ahead="$(g rev-list --count '@{u}..HEAD')"
+        behind="$(g rev-list --count 'HEAD..@{u}')"
+        [ "$ahead" = 0 ] || info "Not sent: $ahead commit(s) — bin/personal push"
+        [ "$behind" = 0 ] || info "From other devices: $behind commit(s) — bin/personal pull"
+      fi
+    else
+      info "Repository: none — bin/personal remote <url>"
+    fi
+    if [ -n "$(g status --porcelain)" ]; then
+      info "Changed, not committed:"
+      g status --short
+    fi
+    ;;
+  remote)
+    url="${2:?a repository URL is required: bin/personal remote <url>}"
+    if g remote get-url origin >/dev/null 2>&1; then
+      g remote set-url origin "$url"
+    else
+      g remote add origin "$url"
+    fi
+    ok "Personal layer → $url"
+    info "Send it there: bin/personal push"
+    ;;
+  push)
+    need_remote
+    if [ -n "$(g status --porcelain)" ]; then
+      g add -A
+      g commit -q -m "${2:-Personal settings from $(hostname -s 2>/dev/null || hostname)}"
+      ok "Committed"
+    fi
+    g push -q -u origin HEAD || die "Could not send. Changes from another device? Run bin/personal pull first."
+    ok "Sent to $(g remote get-url origin)"
+    ;;
+  pull)
+    need_remote
+    # local edits are put aside and back on top (autostash): nothing is lost
+    g pull -q --rebase --autostash origin "$(g rev-parse --abbrev-ref HEAD)" ||
+      die "Could not merge with changes from other devices — resolve it in $ZENDO_USER (git status)"
+    "$KIT_ROOT/bin/sync" --quiet || true
+    ok "Up to date. CSS applies by itself; new scripts and user.js — after restarting Zen"
+    ;;
+  *)
+    die "Unknown command: $1 (bin/personal, remote <url>, push, pull)"
+    ;;
+esac
