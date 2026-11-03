@@ -641,3 +641,60 @@
   from { background-position: 100% 0; }
   to { background-position: -100% 0; }
 }
+
+/* Model search (a long list, e.g. OpenRouter): a field and at most 10 results.
+   The panel lives outside the AI panel, so it sets its own colors. */
+#kit-ai-model-search {
+  --kit-ai-pill: var(--zen-library-pill-bg, color-mix(in srgb, currentColor 7%, transparent));
+  --kit-ai-pill-hover: var(--zen-library-pill-hover-bg, color-mix(in srgb, currentColor 12%, transparent));
+}
+
+.kit-ai-model-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 340px;
+  padding: 8px;
+  font-size: 13px;
+
+  & > .kit-ai-key {
+    width: auto;
+  }
+}
+
+.kit-ai-model-search-title {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+.kit-ai-model-search-results {
+  display: flex;
+  flex-direction: column;
+}
+
+.kit-ai-model-result {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+
+  &:hover,
+  &[selected] {
+    background: var(--kit-ai-pill-hover);
+  }
+}
+
+.kit-ai-model-result-id {
+  font-size: 11px;
+  opacity: 0.55;
+}

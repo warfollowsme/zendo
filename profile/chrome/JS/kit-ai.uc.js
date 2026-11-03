@@ -658,6 +658,52 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     openai: "kit.ai.openai-api-effort",
     compatible: "kit.ai.compatible-effort",
   };
+  // A long model list (an OpenAI-compatible server such as OpenRouter: hundreds)
+  // shows only the "popular" ones in the menu; the rest are found with search.
+  // OpenRouter's API has no popularity, so: the models you chose lately, then the
+  // newest one from each big maker (in this order), then the newest of the rest.
+  const MENU_MODELS = 10;
+  const PREF_RECENT_MODELS = "kit.ai.recent-models"; // { provider: [model ids, latest first] }
+  const MAJOR_MAKERS = ["anthropic", "openai", "google", "deepseek", "x-ai", "qwen", "moonshotai", "z-ai", "mistralai", "meta"];
+
+  function recentModels(provider) {
+    try {
+      return JSON.parse(Services.prefs.getStringPref(PREF_RECENT_MODELS, "{}"))[provider] || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function rememberModel(provider, id) {
+    let all = {};
+    try {
+      all = JSON.parse(Services.prefs.getStringPref(PREF_RECENT_MODELS, "{}"));
+    } catch (e) {}
+    all[provider] = [id, ...(all[provider] || []).filter(x => x !== id)].slice(0, 5);
+    Services.prefs.setStringPref(PREF_RECENT_MODELS, JSON.stringify(all));
+  }
+
+  // list is newest first; the first `count` "popular" models
+  function popularModels(provider, list, count = MENU_MODELS) {
+    const out = [];
+    const add = m => m && !out.includes(m) && out.length < count && out.push(m);
+    for (const id of recentModels(provider)) {
+      add(list.find(m => m.id === id));
+    }
+    for (const maker of MAJOR_MAKERS) {
+      add(list.find(m => m.id.startsWith(maker + "/") && !out.some(o => o.id.startsWith(maker + "/"))));
+    }
+    list.forEach(add);
+    return out;
+  }
+
+  // Search: every word of the query in the model's id or name.
+  function findModels(list, query, count = MENU_MODELS) {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const found = list.filter(m => words.every(w => `${m.id} ${m.name}`.toLowerCase().includes(w)));
+    return { shown: found.slice(0, count), total: found.length };
+  }
+
   const EFFORTS = {
     claude: ["low", "medium", "high", "xhigh", "max"],
     chatgpt: ["low", "medium", "high"],
@@ -1442,16 +1488,85 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         }
         // the chosen model stays even when the server's list no longer shows it
         const chosen = this.modelId(p);
-        if (chosen && !list.some(m => m.id === chosen)) {
-          this.menuItem(popup, chosen, () => this.selectModel(p, chosen));
+        const shown = list.length > MENU_MODELS ? popularModels(p, list) : list;
+        if (chosen && !shown.some(m => m.id === chosen)) {
+          this.menuItem(popup, list.find(m => m.id === chosen)?.name || chosen, () => this.selectModel(p, chosen));
         }
-        for (const m of list) {
+        for (const m of shown) {
           this.menuItem(popup, m.name, () => this.selectModel(p, m.id));
+        }
+        if (list.length > MENU_MODELS) {
+          this.menuItem(popup, `Search all ${list.length} models…`, () => this.openModelSearch(p));
         }
       }
       popup.append(document.createXULElement("menuseparator"));
       this.menuItem(popup, "Connect another assistant…", () => this.showConnect());
       popup.openPopup(this.modelButton, "before_end");
+    }
+
+    // A search over a long model list: a field and at most MENU_MODELS results.
+    // A panel, not a menu: a menu takes the typed letters for its own navigation.
+    openModelSearch(provider) {
+      const list = this.modelLists[provider] || [];
+      let panel = document.getElementById("kit-ai-model-search");
+      if (!panel) {
+        panel = document.createXULElement("panel");
+        panel.id = "kit-ai-model-search";
+        panel.setAttribute("type", "arrow");
+        (document.getElementById("mainPopupSet") || document.documentElement).append(panel);
+      }
+      const box = el("div", "kit-ai-model-search");
+      box.append(el("div", "kit-ai-model-search-title", PROVIDERS[provider].name));
+      const input = el("input", "kit-ai-key");
+      input.placeholder = `Search ${list.length} models: name or maker`;
+      const results = el("div", "kit-ai-model-search-results");
+      const hint = el("div", "kit-ai-row-hint");
+      let active = 0;
+      const choose = m => {
+        panel.hidePopup();
+        this.selectModel(provider, m.id);
+      };
+      const render = () => {
+        const query = input.value.trim();
+        const { shown, total } = query ? findModels(list, query) : { shown: popularModels(provider, list), total: 0 };
+        active = Math.min(active, Math.max(shown.length - 1, 0));
+        results.replaceChildren(
+          ...shown.map((m, i) => {
+            const b = el("button", "kit-ai-model-result");
+            b.append(el("span", null, m.name), el("span", "kit-ai-model-result-id", m.id));
+            b.toggleAttribute("selected", i === active);
+            b.addEventListener("click", () => choose(m));
+            return b;
+          })
+        );
+        results.shown = shown;
+        hint.textContent = !query
+          ? "The ones you chose lately and the newest from the big makers"
+          : total > shown.length
+            ? `${total - shown.length} more — type more to narrow it down`
+            : total
+              ? ""
+              : "Nothing found";
+      };
+      input.addEventListener("input", () => {
+        active = 0;
+        render();
+      });
+      input.addEventListener("keydown", e => {
+        const shown = results.shown || [];
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          active = (active + (e.key === "ArrowDown" ? 1 : -1) + shown.length) % Math.max(shown.length, 1);
+          render();
+        } else if (e.key === "Enter" && shown[active]) {
+          choose(shown[active]);
+        }
+      });
+      box.append(input, results, hint);
+      panel.replaceChildren(box);
+      render();
+      panel.addEventListener("popupshown", () => input.focus(), { once: true });
+      panel.openPopup(this.modelButton, "before_end");
     }
 
     openEffortMenu() {
@@ -1472,6 +1587,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         await this.selectProvider(provider);
       }
       Services.prefs.setStringPref(MODEL_PREF[provider], id);
+      if (id) {
+        rememberModel(provider, id); // the first in the "popular" list next time
+      }
       this.session?.stop(); // Claude Code restarts with the new model and the same chat
       if (this.agent) {
         this.agent.model = id || this.defaultModel(provider) || this.agent.model;
