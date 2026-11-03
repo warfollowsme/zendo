@@ -1157,7 +1157,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       const form = el("div", "kit-ai-api-form");
       let provider = "anthropic";
       const tabs = el("div", "kit-ai-segment");
-      // OpenAI-compatible server: a preset or your own address, a model (optional)
+      // OpenAI-compatible server: a preset or your own address; the model is picked from its list
       const api = this.api();
       const server = el("div", "kit-ai-api-server");
       const preset = el("select", "kit-select");
@@ -1171,14 +1171,12 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       preset.append(custom);
       const url = el("input", "kit-ai-key");
       url.placeholder = "https://…/v1";
-      const model = el("input", "kit-ai-key");
-      model.placeholder = "Model (optional — or pick it later from the list)";
       const syncPreset = () => {
         url.hidden = preset.value !== "";
         input.placeholder = /localhost/.test(preset.value) ? "API key (not needed for a local server)" : "Paste an API key";
       };
       preset.addEventListener("change", syncPreset);
-      server.append(preset, url, model);
+      server.append(preset, url);
       const pick = p => {
         provider = p;
         for (const b of tabs.children) {
@@ -1224,8 +1222,11 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         try {
           if (provider === "compatible") {
             await api.models(window, provider, key || "none", address);
+            const sameServer = api.compatibleURL() === address.replace(/\/+$/, "");
             await api.saveCompatible(address, key);
-            Services.prefs.setStringPref(MODEL_PREF.compatible, model.value.trim());
+            if (!sameServer) {
+              Services.prefs.setStringPref(MODEL_PREF.compatible, ""); // another server — its own models
+            }
             delete this.modelLists.compatible;
           } else {
             await api.models(window, provider, key);
@@ -1240,7 +1241,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           connect.disabled = false;
         }
       });
-      for (const field of [input, url, model]) {
+      for (const field of [input, url]) {
         field.addEventListener("keydown", e => e.key === "Enter" && connect.click());
       }
       pick(provider);
@@ -1385,7 +1386,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       if (provider === "anthropic") {
         return this.api().API_PROVIDERS.anthropic.defaultModel;
       }
-      if (provider === "chatgpt" || provider === "openai" || provider === "compatible") {
+      // an OpenAI-compatible server has no sensible default (OpenRouter's newest is
+      // any model at all): it is picked from the list
+      if (provider === "chatgpt" || provider === "openai") {
         return this.modelLists[provider]?.[0]?.id || "";
       }
       return "";
@@ -1397,6 +1400,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         if (provider === "claude") {
           const resolved = claudeResolved()[""];
           return resolved ? prettyModel(resolved) : "Claude";
+        }
+        if (provider === "compatible") {
+          return "Choose a model";
         }
         return this.defaultModel(provider) || PROVIDERS[provider]?.name || "";
       }
@@ -1425,7 +1431,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         this.menuItem(popup, PROVIDERS[p].name, null, { disabled: true });
         const fallback = p === "claude" ? claudeResolved()[""] && prettyModel(claudeResolved()[""]) : this.defaultModel(p);
         const defaultLabel = fallback ? `Default (${fallback})` : "Default";
-        this.menuItem(popup, defaultLabel, () => this.selectModel(p, ""));
+        if (p !== "compatible") {
+          this.menuItem(popup, defaultLabel, () => this.selectModel(p, ""));
+        }
         const list = this.modelLists[p];
         if (!list) {
           this.menuItem(popup, "Loading models…", null, { disabled: true });
@@ -1975,7 +1983,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       await this.loadModels(p);
       const model = this.modelId(p) || this.defaultModel(p);
       if (!model) {
-        throw new Error(`${PROVIDERS[p].name}: no model available`);
+        throw new Error(
+          p === "compatible" ? `${PROVIDERS[p].name}: choose a model in the model menu below` : `${PROVIDERS[p].name}: no model available`
+        );
       }
       const browserTools = TOOLS.filter(t => t.name !== "approve").map(t => ({
         name: t.name,
