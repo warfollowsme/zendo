@@ -122,6 +122,12 @@ fi
 for f in "$KIT_ROOT"/bin/* "$KIT_ROOT"/install.sh; do
   [ -f "$f" ] || continue
   out="$(bash -n "$f" 2>&1)" || fail "$(rel "$f"): $out"
+  # git doesn't see permissions here (core.fileMode=false): check what a clone gets
+  case "$(basename "$f")" in _*) continue ;; esac
+  mode="$(git -C "$KIT_ROOT" ls-files -s -- "$f" 2>/dev/null | cut -d' ' -f1)"
+  if [ -n "$mode" ] && [ "$mode" != 100755 ]; then
+    fail "$(rel "$f"): not executable in git — git update-index --chmod=+x $(rel "$f")"
+  fi
 done
 
 if [ "$errors" = 0 ]; then

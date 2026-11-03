@@ -293,8 +293,11 @@ You can't always restart the browser and look at the result yourself, so:
   `bin/theme`, `bin/mod`, `bin/site`. Commit them too: they are the current
   build.
 - `zen-source/` and `.kit/` are not part of the base's git.
-- Git doesn't track file permissions (`core.fileMode=false`), and there are no
-  symlinks inside the repository.
+- Git here doesn't track file permissions (`core.fileMode=false`), so a new
+  script in `bin/` must be marked executable explicitly:
+  `git update-index --chmod=+x bin/<name>` (otherwise it fails with
+  "Permission denied" on a fresh clone). There are no symlinks inside the
+  repository.
 
 ## What not to do
 
