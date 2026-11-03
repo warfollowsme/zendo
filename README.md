@@ -1,8 +1,4 @@
-<img src="assets/zendo-256.png" width="100" align="left" alt="Zendo icon">
-
-### `Zendo`
-
-<br clear="left">
+<h3><img src="assets/zendo-256.png" width="80" align="middle" alt="Zendo icon">&nbsp;&nbsp;<code>Zendo</code></h3>
 
 [Zen](https://zen-browser.app) you customize with AI. The idea is like
 [Omarchy](https://omarchy.org), but for a browser: a well-thought-out base,

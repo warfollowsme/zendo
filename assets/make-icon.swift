@@ -152,9 +152,9 @@ func save(_ image: CGImage, _ path: String) {
 let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
 let master = ctx.makeImage()!
 save(master, "\(out)/zendo.png")
-let readme = bitmap(256, 256) // the README header
+let readme = bitmap(256, 256) // the README header: the tile only, without the margins for the shadow
 readme.interpolationQuality = .high
-readme.draw(master, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+readme.draw(master.cropping(to: tile)!, in: CGRect(x: 0, y: 0, width: 256, height: 256))
 save(readme.makeImage()!, "\(out)/zendo-256.png")
 
 let iconset = NSTemporaryDirectory() + "Zendo.iconset"
