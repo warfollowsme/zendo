@@ -6,6 +6,8 @@ git repository. Missing something? Ask your AI agent — it writes the CSS or th
 script and commits it, and the browser picks it up: CSS at once, scripts after
 a restart.
 
+![Zendo window: the Tabs panel on the left, three pages in a split, the AI assistant on the right, tool rails on both edges](assets/screenshot.png)
+
 - **A layout like an IDE.** Tool rails on both edges, island side panels in
   four zones, Zen workspaces as numbers in the top strip, links that a site
   opens in a new tab open in a split.
@@ -55,6 +57,8 @@ Platform notes, AppImage, Flatpak and removal — in
 
 Themes, mods and site styles are toggled with `bin/theme`, `bin/mod`,
 `bin/site` or in the **Settings** panel — see [Commands](#commands).
+
+![The same window in Tokyo Night, Catppuccin Mocha, Gruvbox Dark, Nord and Rosé Pine Dawn, switched with bin/theme without a restart](assets/themes.gif)
 
 ## Security
 
