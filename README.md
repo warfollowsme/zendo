@@ -2,10 +2,6 @@
 
 # Zendo
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-![Platforms: macOS, Linux](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-lightgrey)
-[![Built on Zen](https://img.shields.io/badge/built%20on-Zen%20Browser-black)](https://zen-browser.app)
-
 <br clear="left">
 
 [Zen](https://zen-browser.app) you customize with AI. The idea is like
