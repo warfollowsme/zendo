@@ -15,6 +15,10 @@ user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
 user_pref("devtools.chrome.enabled", true);
 user_pref("devtools.debugger.remote-enabled", true);
 
+// Navigation and the address bar as a separate toolbar, not inside the tab panel:
+// the window layout (kit-layout.uc.js) moves that toolbar into the top bar.
+user_pref("zen.view.use-single-toolbar", false);
+
 // ---- Zen appearance (uncomment and change if needed) ----
 
 // While typing, the address bar expands in place, downward below the bar, instead
