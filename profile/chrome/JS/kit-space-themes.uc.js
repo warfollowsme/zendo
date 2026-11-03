@@ -145,10 +145,20 @@
       }
       if (!picker) {
         picker = await themeRow(panel, uuid);
+        // over the hidden controls: where the colors come from now
+        const note = document.createElement("div");
+        note.className = "kit-space-theme-note";
+        const update = () => {
+          note.textContent = `Colors come from the ${picker.select.selectedOptions[0]?.textContent} theme. Choose Zen to set this space's own colors.`;
+        };
+        picker.select.addEventListener("change", update);
+        picker.update = update;
         view.prepend(picker.row);
+        view.append(note);
       }
       picker.select.value = themeOf(uuid());
       picker.mark();
+      picker.update();
     });
   }
 

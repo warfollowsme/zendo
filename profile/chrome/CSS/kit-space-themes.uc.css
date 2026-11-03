@@ -35,10 +35,26 @@ zen-workspace-creation[kit-theme-chosen] .zen-workspace-creation-edit-theme-butt
   margin: 0 0 10px;
 }
 
-#PanelUI-zen-gradient-generator[kit-theme-chosen] #PanelUI-zen-gradient-generator-view > :not(.kit-space-theme) {
-  display: none !important;
+/* The controls are hidden but keep their place: Zen positions the panel by
+   its size, and a panel that shrank or grew jumped elsewhere on screen. */
+#PanelUI-zen-gradient-generator-view {
+  position: relative;
 }
 
-#PanelUI-zen-gradient-generator[kit-theme-chosen] #PanelUI-zen-gradient-generator-view > .kit-space-theme {
-  margin: 0;
+#PanelUI-zen-gradient-generator[kit-theme-chosen] #PanelUI-zen-gradient-generator-view > :not(.kit-space-theme, .kit-space-theme-note) {
+  visibility: hidden !important;
+}
+
+.kit-space-theme-note {
+  display: none;
+  position: absolute;
+  inset: 60px 16px 16px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  opacity: 0.6;
+
+  #PanelUI-zen-gradient-generator[kit-theme-chosen] & {
+    display: flex;
+  }
 }
