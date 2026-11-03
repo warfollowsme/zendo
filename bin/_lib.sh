@@ -163,6 +163,13 @@ zen_flatpak() {
   ! is_macos && command -v flatpak >/dev/null 2>&1 && flatpak info app.zen_browser.zen >/dev/null 2>&1
 }
 
+# Run a program detached from this terminal: right away in its own session
+# (setsid -f), so closing the terminal (or the installer's) doesn't take Zen
+# with it. Without setsid -f (old util-linux) — nohup.
+detach() {
+  setsid -f "$@" >/dev/null 2>&1 < /dev/null || { nohup "$@" >/dev/null 2>&1 < /dev/null & }
+}
+
 # Start Zen in the background (or bring it forward / open a window if it runs).
 start_zen() {
   local res
@@ -170,13 +177,13 @@ start_zen() {
     res="$(detect_app_resources)" || return 1
     /usr/bin/open -a "$(cd "$res/../.." && pwd -P)"
   elif res="$(detect_app_resources 2>/dev/null)" && [ -x "$res/zen" ]; then
-    nohup "$res/zen" >/dev/null 2>&1 &
+    detach "$res/zen"
   elif command -v zen-browser >/dev/null 2>&1; then
-    nohup zen-browser >/dev/null 2>&1 &
+    detach zen-browser
   elif command -v zen >/dev/null 2>&1; then
-    nohup zen >/dev/null 2>&1 &
+    detach zen
   elif zen_flatpak; then
-    nohup flatpak run app.zen_browser.zen >/dev/null 2>&1 &
+    detach flatpak run app.zen_browser.zen
   else
     return 1
   fi
