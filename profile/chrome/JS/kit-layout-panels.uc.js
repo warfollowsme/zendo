@@ -180,9 +180,6 @@
       const info = el("span", "kit-info");
       info.title =
         "The theme for spaces that don't have their own.\n\n" +
-        "A space's own theme is chosen when you create it, or later in its theme picker " +
-        "(right-click the space → Change Theme). A space with colors set in Zen's picker " +
-        "keeps those colors.\n\n" +
         "If nothing changes when you pick a theme here, the current space has its own theme.";
       themeBox.firstChild.append(info);
       let current = "";
