@@ -1131,7 +1131,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
       box.append(
         option("chatgpt", "ChatGPT", "Plus, Pro or Team subscription", () => this.connectChatGPT(say)),
-        option("claude", "Claude", "Claude Code on this Mac (Pro or Max)", () => this.connectClaude(say)),
+        option("claude", "Claude", "Claude Code on this computer (Pro or Max)", () => this.connectClaude(say)),
         apiOption,
         form,
         message
