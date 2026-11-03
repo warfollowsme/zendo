@@ -524,10 +524,22 @@
   margin: 0 !important;
   padding: 0 !important;
   border: 0 !important;
-  overflow: visible !important;
+  /* clip, so the shifted button doesn't stretch the tab panel's scroll area
+     (the panel scrolled and its header slid up); its position is still measured */
+  overflow: clip !important;
 }
 :root[kit-layout] #zen-library-button {
   translate: var(--kit-library-shift-x, 0) var(--kit-library-shift-y, 0) !important;
+}
+
+/* Create Space form in a short tab panel: Zen lets it shrink without a
+   scrollbar, and the Create Space / Cancel buttons ended up out of reach. */
+:root[kit-layout] zen-workspace-creation {
+  overflow-y: auto !important;
+}
+:root[kit-layout] zen-workspace-creation form {
+  height: auto !important;
+  min-height: 100% !important;
 }
 
 /* ---------- resizing ---------- */
