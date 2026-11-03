@@ -72,17 +72,19 @@ fi
 
 # 3. Script loader
 if [ "$AUTOCONFIG" = 1 ]; then
-  RES="$(detect_app_resources)" || die "Zen application not found. Specify the path: --app /Applications/Zen.app"
+  RES="$(detect_app_resources)" || die "Zen application not found. Specify the path: --app /path/to/Zen"
+  SUDO="" # Linux: Zen's folder is usually root-owned
+  if [ ! -w "$RES" ] && [ "$DRY" = 0 ] && ! is_macos; then SUDO="sudo"; fi
   if [ -f "$RES/config.js" ] && cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
-    run rm "$RES/config.js"
+    run $SUDO rm "$RES/config.js"
     ok "config.js removed from the application"
   fi
   if [ -f "$RES/defaults/pref/config-prefs.js" ] && cmp -s "$RES/defaults/pref/config-prefs.js" "$KIT_ROOT/program/defaults/pref/config-prefs.js"; then
-    run rm "$RES/defaults/pref/config-prefs.js"
+    run $SUDO rm "$RES/defaults/pref/config-prefs.js"
     ok "defaults/pref/config-prefs.js removed"
   fi
   if [ -n "$BACKUP" ] && [ -f "$BACKUP/program/config.js" ]; then
-    run cp "$BACKUP/program/config.js" "$RES/config.js"
+    run $SUDO cp "$BACKUP/program/config.js" "$RES/config.js"
     ok "previous application config.js restored"
   fi
   [ "$DRY" = 0 ] && clear_startup_cache "$PROFILE"

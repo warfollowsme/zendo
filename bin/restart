@@ -9,35 +9,23 @@ CLEAR=0
 
 "$KIT_ROOT/bin/sync" --quiet || true # personal files and user.js go to the profile
 
-if is_macos; then
-  RES="$(detect_app_resources)" || die "Zen.app not found"
-  APP="$(cd "$RES/../.." && pwd -P)"
-  APP_NAME="$(basename "$APP" .app)"
-  if zen_running; then
-    info "Quitting $APP_NAME…"
-    osascript -e "tell application \"$APP_NAME\" to quit" >/dev/null 2>&1 || true
-    for _ in $(seq 1 40); do
-      zen_running || break
-      sleep 0.25
-    done
-    zen_running && die "Zen did not quit within 10 seconds — close it manually."
+if zen_running; then
+  info "Quitting Zen…"
+  if is_macos; then
+    APP="$(cd "$(detect_app_resources)/../.." && pwd -P)"
+    osascript -e "tell application \"$(basename "$APP" .app)\" to quit" >/dev/null 2>&1 || true
+  else
+    pkill -x zen 2>/dev/null || pkill -x zen-bin 2>/dev/null || pkill -x zen-browser 2>/dev/null || true
   fi
-  if [ "$CLEAR" = 1 ]; then
-    PROFILE="$(require_active_profile)"
-    clear_startup_cache "$PROFILE"
-  fi
-  open -a "$APP"
-  ok "Zen started"
-else
-  if zen_running; then
-    pkill -x zen 2>/dev/null || pkill -x zen-bin 2>/dev/null || true
-    for _ in $(seq 1 40); do zen_running || break; sleep 0.25; done
-  fi
-  if [ "$CLEAR" = 1 ]; then
-    PROFILE="$(require_active_profile)"
-    clear_startup_cache "$PROFILE"
-  fi
-  command -v zen >/dev/null 2>&1 || die "zen is not in PATH — launch Zen manually."
-  nohup zen >/dev/null 2>&1 &
-  ok "Zen started"
+  for _ in $(seq 1 40); do
+    zen_running || break
+    sleep 0.25
+  done
+  zen_running && die "Zen did not quit within 10 seconds — close it manually."
 fi
+if [ "$CLEAR" = 1 ]; then
+  PROFILE="$(require_active_profile)"
+  clear_startup_cache "$PROFILE"
+fi
+start_zen || die "Zen not found — launch it manually."
+ok "Zen started"

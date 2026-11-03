@@ -50,7 +50,7 @@ zendo/                        base
 ├── install.sh                one-command install (curl … | bash)
 ├── defaults/user/            personal layer skeleton: bin/sync copies what's missing
 ├── assets/                   Zendo icon: make-icon.swift draws zendo.png and Zendo.icns
-├── bin/                      commands (bash 3.2 — as on macOS)
+├── bin/                      commands (bash 3.2 as on macOS; also Linux)
 │   ├── install / uninstall   connect / disconnect the project from the Zen profile
 │   ├── sync                  assemble the profile from the base and personal layer
 │   ├── update                update the base from GitHub
@@ -61,7 +61,7 @@ zendo/                        base
 │   ├── status                what's connected, Zen versions
 │   ├── check                 check without running Zen: imports, headers, JS syntax
 │   ├── launch                start Zen: restore the script loader after an update, connect the profile
-│   ├── app                   build /Applications/Zendo.app, which calls bin/launch
+│   ├── app                   Zendo launcher (Zendo.app on macOS, .desktop on Linux) → bin/launch
 │   └── zen-source            download / update the Zen sources
 ├── profile/                  everything that goes into the Zen profile
 │   ├── user.js               preferences (about:config), applied on every start

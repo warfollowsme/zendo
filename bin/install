@@ -98,25 +98,34 @@ else
 fi
 
 if [ "$AUTOCONFIG" = 1 ]; then
-  RES="$(detect_app_resources)" || die "Zen application not found. Specify the path: bin/install --autoconfig --app /Applications/Zen.app"
+  if ! RES="$(detect_app_resources)"; then
+    zen_flatpak && die "Zen from Flathub keeps its program folder read-only, so the script loader can't be installed. Use Zen from the tarball or your distro's package, or run bin/install without --autoconfig (CSS only)."
+    die "Zen application not found. Specify the path: bin/install --autoconfig --app /path/to/Zen"
+  fi
   info ""
   info "Script loader (fx-autoconfig) → ${C_BOLD}$RES${C_RESET}"
+  # On Linux Zen usually lives in a root-owned folder (/opt/...): only the
+  # copies into it go through sudo, everything else stays yours.
+  SUDO=""
   if [ ! -w "$RES" ] && [ "$DRY" = 0 ]; then
-    die "No write permission for $RES. Try: sudo bin/install --autoconfig"
+    is_macos && die "No write permission for $RES"
+    command -v sudo >/dev/null 2>&1 || die "No write permission for $RES and no sudo"
+    info "Zen's folder belongs to root — sudo will ask for your password."
+    SUDO="sudo"
   fi
   if [ -f "$RES/config.js" ] && ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
     run mkdir -p "$BACKUP/program"
     run cp "$RES/config.js" "$BACKUP/program/config.js"
     warn "the application had a different config.js — a copy was backed up"
   fi
-  run cp "$KIT_ROOT/program/config.js" "$RES/config.js"
-  run mkdir -p "$RES/defaults/pref"
-  run cp "$KIT_ROOT/program/defaults/pref/config-prefs.js" "$RES/defaults/pref/config-prefs.js"
+  run $SUDO cp "$KIT_ROOT/program/config.js" "$RES/config.js"
+  run $SUDO mkdir -p "$RES/defaults/pref"
+  run $SUDO cp "$KIT_ROOT/program/defaults/pref/config-prefs.js" "$RES/defaults/pref/config-prefs.js"
   ok "config.js and defaults/pref/config-prefs.js copied"
   if [ "$DRY" = 0 ]; then
     clear_startup_cache "$PROFILE"
   fi
-  warn "Zen updates remove these files: launch Zen via Zendo.app (bin/app) to restore them automatically."
+  warn "Zen updates remove these files: launch Zen via Zendo (bin/app) to restore them automatically."
 fi
 
 info ""

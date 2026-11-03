@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Launches Zen with everything the project needs. Called by Zendo.app (bin/app).
+# Launches Zen with everything the project needs. Called by Zendo.app on macOS
+# and by the Zendo menu entry on Linux (both made by bin/app).
 #   bin/launch   — check and open Zen
 #
 # Before launching:
@@ -17,24 +18,37 @@ exec >>"$KIT_STATE/launch.log" 2>&1
 printf '\n== %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
 
 alert() {
-  /usr/bin/osascript -e 'on run argv' -e 'display alert "Zendo" message (item 1 of argv) as warning' -e 'end run' "$1" >/dev/null 2>&1 || true
+  info "$1"
+  if is_macos; then
+    /usr/bin/osascript -e 'on run argv' -e 'display alert "Zendo" message (item 1 of argv) as warning' -e 'end run' "$1" >/dev/null 2>&1 || true
+  elif command -v notify-send >/dev/null 2>&1; then
+    notify-send -i dialog-warning "Zendo" "$1" >/dev/null 2>&1 || true
+  fi
 }
 
-RES="$(detect_app_resources)" || { alert "Zen not found in /Applications. Install Zen: https://zen-browser.app"; exit 1; }
-APP="$(cd "$RES/../.." && pwd -P)"
+open_zen() {
+  start_zen || { alert "Zen not found. Install Zen: https://zen-browser.app"; exit 1; }
+  exit 0
+}
+
+RES="$(detect_app_resources)" || RES=""
+if [ -z "$RES" ] && ! zen_flatpak; then
+  alert "Zen not found. Install Zen: https://zen-browser.app"
+  exit 1
+fi
 
 if zen_running; then
   info "Zen already running"
   "$KIT_ROOT/bin/sync" --quiet || true
-  exec /usr/bin/open -a "$APP"
+  open_zen
 fi
 
-# Script loader in the Zen app.
-if ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js" ||
-   ! cmp -s "$RES/defaults/pref/config-prefs.js" "$KIT_ROOT/program/defaults/pref/config-prefs.js"; then
+# Script loader in the Zen app (not possible for Flatpak Zen: its folder is read-only).
+if [ -n "$RES" ] && { ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js" ||
+   ! cmp -s "$RES/defaults/pref/config-prefs.js" "$KIT_ROOT/program/defaults/pref/config-prefs.js"; }; then
   info "Script loader missing in $RES (Zen updated?) — reinstalling"
   if ! "$KIT_ROOT/bin/install" --autoconfig; then
-    alert "Could not restore the script loader in Zen (details: $KIT_STATE/launch.log). Zen will open without scripts."
+    alert "Could not restore the script loader in Zen (details: $KIT_STATE/launch.log). Zen will open without scripts. On Linux, run in a terminal: $KIT_ROOT/bin/install --autoconfig"
   fi
 fi
 
@@ -48,4 +62,4 @@ else
   "$KIT_ROOT/bin/sync" || alert "Could not build the profile (details: $KIT_STATE/launch.log)."
 fi
 
-exec /usr/bin/open -a "$APP"
+open_zen

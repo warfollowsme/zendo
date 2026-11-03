@@ -1,14 +1,38 @@
 #!/usr/bin/env bash
-# Build Zendo.app — an icon that launches Zen via bin/launch.
-#   bin/app              — build into /Applications/Zendo.app
-#   bin/app <folder>     — build into another folder (e.g. ~/Applications)
+# Make the Zendo launcher, which starts Zen via bin/launch.
+#   macOS: bin/app            — build /Applications/Zendo.app
+#          bin/app <folder>   — build it in another folder (e.g. ~/Applications)
+#   Linux: bin/app            — add Zendo to the applications menu
+#                               (~/.local/share/applications/zendo.desktop)
 #
 # It only holds a link to this project folder; the launch logic is in bin/launch,
-# so rebuild only after moving the project. Icon: assets/Zendo.icns
+# so rebuild only after moving the project. Icon: assets/Zendo.icns / zendo.png
 # (drawn by assets/make-icon.swift), otherwise the Zen icon.
 source "$(dirname "$0")/_lib.sh"
 
-is_macos || die "Zendo.app is for macOS only"
+if ! is_macos; then
+  APPS="${1:-${XDG_DATA_HOME:-$HOME/.local/share}/applications}"
+  mkdir -p "$APPS"
+  cat > "$APPS/zendo.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Zendo
+GenericName=Web Browser
+Comment=Starts Zen after checking the script loader and the profile
+Exec="$KIT_ROOT/bin/launch"
+Icon=$KIT_ROOT/assets/zendo.png
+Categories=Network;WebBrowser;
+StartupWMClass=zen
+Terminal=false
+EOF
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$APPS" >/dev/null 2>&1 || true
+  fi
+  ok "Added $APPS/zendo.desktop → $KIT_ROOT/bin/launch"
+  info "Find Zendo in the applications menu and pin it instead of Zen."
+  exit 0
+fi
+
 DEST="${1:-/Applications}/Zendo.app"
 RES="$(detect_app_resources)" || die "Zen application not found in /Applications"
 

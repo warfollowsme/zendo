@@ -1223,6 +1223,11 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       } else if (!status.loggedIn) {
         const box = el("span");
         box.append("Claude Code is not signed in. ");
+        if (Services.appinfo.OS !== "Darwin") {
+          box.append("Run `claude auth login` in a terminal, then click Claude again.");
+          say(box, true);
+          return;
+        }
         box.append(
           this.button("Sign in in Terminal", "Runs `claude auth login` in Terminal", () => {
             Subprocess.call({

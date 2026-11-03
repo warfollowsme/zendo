@@ -14,21 +14,66 @@ side panel — it writes the CSS and scripts itself.
 - links from a page open in a split on the right.
 
 Zendo is an unofficial project, not affiliated with the Zen team. Runs on
-macOS.
+macOS and Linux; Windows isn't supported yet (see [Windows](#windows)).
 
 ## Installation
 
-1. Install [Zen](https://zen-browser.app) (or `brew install --cask zen`),
-   launch it once and quit (Cmd+Q).
-2. Run in a terminal:
-   ```sh
-   curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh | bash
-   ```
-   The script downloads Zendo to `~/.local/share/zendo`, connects it to your
-   Zen profile and builds **Zendo.app** in `/Applications`.
-3. Launch Zen via Zendo.app (drag it to the Dock instead of Zen). A Zen update
-   wipes the script loader from the program — Zendo.app restores it before
-   every launch.
+You need [Zen](https://zen-browser.app), launched at least once (so it has a
+profile), and git. Then run in a terminal:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh | bash
+```
+
+The script downloads Zendo to `~/.local/share/zendo`, connects it to your Zen
+profile, installs the script loader into Zen and adds the **Zendo** launcher.
+From then on, start Zen with Zendo: a Zen update wipes the script loader from
+the program, and Zendo puts it back before every launch.
+
+The AI assistant needs [Claude Code](https://claude.com/claude-code), a
+ChatGPT account or an Anthropic / OpenAI API key — the panel will ask which one
+to connect.
+
+### macOS
+
+1. Install Zen: from [zen-browser.app](https://zen-browser.app) or
+   `brew install --cask zen`. Launch it once and quit (Cmd+Q).
+2. Run the command above. git comes with Apple Command Line Tools — if they are
+   missing, the script opens their installer; run the command again afterwards.
+3. The script builds **Zendo.app** in `/Applications`. Drag it to the Dock in
+   place of Zen.
+
+### Linux
+
+1. Install Zen from the tarball ([zen-browser.app](https://zen-browser.app)),
+   or your distro's package (e.g. `zen-browser-bin` from the AUR). Launch it once
+   and quit.
+2. Install git (`sudo apt install git`, `sudo dnf install git`,
+   `sudo pacman -S git`) and run the command above.
+3. Zen's program folder (e.g. `/opt/zen`) usually belongs to root, so copying
+   the script loader there asks for your **sudo** password. Only two files are
+   copied: `config.js` and `defaults/pref/config-prefs.js`.
+4. The script adds **Zendo** to the applications menu
+   (`~/.local/share/applications/zendo.desktop`). Pin it in place of Zen.
+
+Zendo finds Zen via `zen` / `zen-browser` in `PATH` or in `/opt/zen`,
+`/opt/zen-browser`, `/opt/zen-browser-bin`, `~/.tarball-installations/zen`. If
+yours is elsewhere: `ZEN_APP=/path/to/zen-folder` before the command (the folder
+with `application.ini`).
+
+**Flatpak and AppImage.** Their program folder is read-only, so the script
+loader can't be installed: with Flatpak Zen, Zendo sets up only themes, mods
+and site styles — no window layout, AI assistant or other scripts. For the full
+Zendo, use the tarball or a distro package.
+
+### Windows
+
+Not supported yet. Zendo's commands are bash scripts and connect the profile
+with symlinks, and the browser scripts start them through `/bin/bash`; all of
+that needs porting. Zen's own customization (Zen Mods, `userChrome.css` copied
+into the profile by hand) works as usual.
+
+### Removing
 
 Anything that was already in the profile where Zendo puts its files
 (`userChrome.css`, `user.js`) is moved to a backup. To remove Zendo and restore
@@ -38,10 +83,6 @@ everything as it was:
 ~/.local/share/zendo/bin/uninstall --autoconfig
 ```
 
-The AI assistant needs [Claude Code](https://claude.com/claude-code), a
-ChatGPT account or an Anthropic / OpenAI API key — the panel will ask which one
-to connect.
-
 ### Manually
 
 ```sh
@@ -49,7 +90,7 @@ git clone https://github.com/warfollowsme/zendo ~/.local/share/zendo
 cd ~/.local/share/zendo
 bin/install --dry-run      # show what will change
 bin/install --autoconfig   # connect (Zen must be closed)
-bin/app                    # build Zendo.app
+bin/app                    # Zendo.app on macOS, a menu entry on Linux
 ```
 
 Without `--autoconfig` only themes and mods (CSS) work — no layout,
@@ -91,7 +132,7 @@ From the base folder (`~/.local/share/zendo`):
 | `bin/check` | check the base and personal layer without running Zen: imports, headers, JS syntax |
 | `bin/zen-source` | download or update the Zen sources in `zen-source/` (the AI uses them to find selectors) |
 | `bin/install` / `bin/uninstall` | connect / disconnect Zendo from the profile |
-| `bin/app` | build Zendo.app — launches Zen after checking the script loader and the profile (`bin/launch`) |
+| `bin/app` | make the Zendo launcher (Zendo.app on macOS, a menu entry on Linux) — starts Zen after checking the script loader and the profile (`bin/launch`) |
 
 The same things — themes, mods, sites — can be toggled in the **Settings**
 panel.
@@ -245,7 +286,7 @@ means default:
 
 - **If you remove the Zendo folders**, Zen opens with its usual look — nothing
   breaks, it's just without the customizations. If you move the base, run
-  `bin/app` in the new location and open Zendo.app: it reconnects the profile
+  `bin/app` in the new location and start Zendo: it reconnects the profile
   itself.
 - **user.js wins over the UI.** Preferences from the base's and personal
   layer's `user.js` are applied on every start and override what's set in Zen's
@@ -258,6 +299,8 @@ means default:
   `not -moz-pref("kit.css.live")` condition. Without `--autoconfig` regular
   imports work, and then a restart is needed. A new `*.uc.css`, JS and
   `user.js` always need a restart.
+- **Keys.** Shortcuts are written for macOS; on Linux, Cmd is Ctrl and Opt is
+  Alt.
 - **Inspector.** Browser Toolbox (Cmd+Opt+Shift+I) — find the id and classes
   of any part of the UI.
 - **Zen's built-in mods** (Zen Mods from the settings) keep working — they

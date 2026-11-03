@@ -137,18 +137,49 @@ detect_app_resources() {
       fi
     done
   else
-    local bin
-    bin="$(command -v zen 2>/dev/null || true)"
-    if [ -n "$bin" ]; then
+    # Linux: the folder with application.ini — next to the zen binary in PATH
+    # (often a symlink), or a known install location.
+    local bin dir
+    for bin in "$(command -v zen 2>/dev/null || true)" "$(command -v zen-browser 2>/dev/null || true)"; do
+      [ -n "$bin" ] || continue
       while [ -L "$bin" ]; do
         local target; target="$(readlink "$bin")"
         case "$target" in /*) bin="$target" ;; *) bin="$(dirname "$bin")/$target" ;; esac
       done
-      printf '%s\n' "$(cd "$(dirname "$bin")" && pwd -P)"; return 0
-    fi
-    [ -d /opt/zen ] && { printf '%s\n' /opt/zen; return 0; }
+      dir="$(cd "$(dirname "$bin")" && pwd -P)"
+      [ -f "$dir/application.ini" ] && { printf '%s\n' "$dir"; return 0; }
+    done
+    for dir in /opt/zen /opt/zen-browser /opt/zen-browser-bin \
+               "$HOME/.tarball-installations/zen" "$HOME/.local/share/zen" "$HOME/.local/opt/zen"; do
+      [ -f "$dir/application.ini" ] && { printf '%s\n' "$dir"; return 0; }
+    done
   fi
   return 1
+}
+
+# Linux: Zen installed from Flathub. Its application folder is read-only, so
+# the script loader can't be installed — only CSS works.
+zen_flatpak() {
+  ! is_macos && command -v flatpak >/dev/null 2>&1 && flatpak info app.zen_browser.zen >/dev/null 2>&1
+}
+
+# Start Zen in the background (or bring it forward / open a window if it runs).
+start_zen() {
+  local res
+  if is_macos; then
+    res="$(detect_app_resources)" || return 1
+    /usr/bin/open -a "$(cd "$res/../.." && pwd -P)"
+  elif res="$(detect_app_resources 2>/dev/null)" && [ -x "$res/zen" ]; then
+    nohup "$res/zen" >/dev/null 2>&1 &
+  elif command -v zen-browser >/dev/null 2>&1; then
+    nohup zen-browser >/dev/null 2>&1 &
+  elif command -v zen >/dev/null 2>&1; then
+    nohup zen >/dev/null 2>&1 &
+  elif zen_flatpak; then
+    nohup flatpak run app.zen_browser.zen >/dev/null 2>&1 &
+  else
+    return 1
+  fi
 }
 
 # Version of the installed Zen (if it can be found).
@@ -171,7 +202,7 @@ zen_running() {
   if is_macos; then
     pgrep -x zen >/dev/null 2>&1 || pgrep -f '/Zen( Browser)?\.app/Contents/MacOS/' >/dev/null 2>&1
   else
-    pgrep -x zen >/dev/null 2>&1 || pgrep -x zen-bin >/dev/null 2>&1
+    pgrep -x zen >/dev/null 2>&1 || pgrep -x zen-bin >/dev/null 2>&1 || pgrep -x zen-browser >/dev/null 2>&1
   fi
 }
 
