@@ -1,0 +1,44 @@
+/* Theme list in the Create Space form and on top of Zen's theme picker
+   (kit-space-themes.uc.js). With a theme other than "Zen", Zen's color
+   controls are hidden: the space uses that theme. */
+
+.kit-space-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  & > span {
+    flex-shrink: 0;
+  }
+
+  & > .kit-select {
+    width: auto;
+    min-width: 0;
+    margin: 0;
+  }
+}
+
+/* in the Create Space form: a row like Profile */
+zen-workspace-creation .kit-space-theme {
+  padding: 4px 4px 4px 10px;
+  border-radius: 8px;
+  background: var(--input-background-color, light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05)));
+}
+
+zen-workspace-creation[kit-theme-chosen] .zen-workspace-creation-edit-theme-button {
+  display: none !important;
+}
+
+/* in Zen's theme picker: on top, above the gradient */
+#PanelUI-zen-gradient-generator-view > .kit-space-theme {
+  margin: 0 0 10px;
+}
+
+#PanelUI-zen-gradient-generator[kit-theme-chosen] #PanelUI-zen-gradient-generator-view > :not(.kit-space-theme) {
+  display: none !important;
+}
+
+#PanelUI-zen-gradient-generator[kit-theme-chosen] #PanelUI-zen-gradient-generator-view > .kit-space-theme {
+  margin: 0;
+}

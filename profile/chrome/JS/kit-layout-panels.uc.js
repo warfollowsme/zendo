@@ -176,7 +176,7 @@
       await bin(repo, "sync", "--quiet"); // new personal layer files go into the list
       body.replaceChildren();
 
-      const themeBox = group("Theme");
+      const themeBox = group("Default theme"); // for spaces without their own (kit-space-themes.uc.js)
       let current = "";
       try {
         current = (await IOUtils.readUTF8(kitPath("theme.css"))).match(/theme:\s*(\S+)/)?.[1] || "";

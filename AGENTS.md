@@ -78,7 +78,8 @@ zendo/                        base
 │       │   ├── kit-layout-panels.uc.js  Settings and Develop panels
 │       │   ├── kit-ai.uc.js             AI assistant: panel and browser tools
 │       │   ├── kit-ai.sys.mjs           AI assistant: MCP server, launching Claude Code
-│       │   ├── kit-live-css.sys.mjs     CSS without restart: theme, mods, sites, *.uc.css
+│       │   ├── kit-live-css.sys.mjs     CSS without restart: themes, mods, sites, *.uc.css
+│       │   ├── kit-space-themes.uc.js   a theme per Zen space (Theme list in Create Space / theme picker)
 │       │   └── kit-site-scripts.sys.mjs site scripts: sites/<name>.js on pages
 │       ├── CSS/              fx-autoconfig styles (*.uc.css): kit-layout, kit-ai
 │       ├── resources/        files for scripts: kit-ai/chatgpt.sys.mjs — ChatGPT, kit-ai/api.sys.mjs — API keys

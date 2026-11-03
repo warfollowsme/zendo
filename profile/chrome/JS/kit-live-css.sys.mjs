@@ -16,6 +16,9 @@
 //     not -moz-pref("kit.css.live"): the module turns the pref on, and the old
 //     imports are disabled. Without the script loader the pref isn't set, and CSS
 //     works as before, via imports, but only after a restart;
+//   - instead of the one theme from kit/theme.css, every theme is loaded, each
+//     under its own attribute (spaceThemes below): each Zen space has its own
+//     theme, and kit-space-themes.uc.js marks the window with the active one;
 //   - once a second the module checks file modification times and on any
 //     change registers the fresh version. CSS/*.uc.css are reloaded the same way.
 // New *.uc.css files and JS changes still require a restart.
@@ -67,6 +70,39 @@ async function bodyOf(path, deps) {
   }
 }
 
+// Every theme at once, each under :root[kit-theme="<name>"]; the theme engine
+// works only while the window has such an attribute. kit-space-themes.uc.js sets
+// it from the active space (and removes it for "Zen": then the space's own
+// colors from Zen's theme picker show). The theme chosen with bin/theme is the
+// default for spaces without their own; its name goes to kit.theme.default.
+async function spaceThemes(dir, deps) {
+  const themesDir = PathUtils.join(dir, "kit", "themes");
+  deps.add(themesDir); // a new or removed theme changes the folder
+  let css = (await flatten(PathUtils.join(dir, "kit", "theme-engine.css"), deps)).replaceAll(
+    ':root:not([zen-private-window="true"])',
+    ':root[kit-theme]:not([zen-private-window="true"])'
+  );
+  let files = [];
+  try {
+    files = await IOUtils.getChildren(themesDir);
+  } catch (e) {}
+  for (const path of files.sort()) {
+    const file = PathUtils.filename(path);
+    if (file.endsWith(".css") && !file.startsWith("._")) {
+      const name = file.slice(0, -4);
+      css += (await flatten(path, deps)).replace(/:root\b/g, `:root[kit-theme="${name}"]`);
+    }
+  }
+  const current = PathUtils.join(dir, "kit", "theme.css");
+  deps.add(current);
+  let fallback = "zen-default";
+  try {
+    fallback = (await IOUtils.readUTF8(current)).match(/theme:\s*(\S+)/)?.[1] || fallback;
+  } catch (e) {}
+  Services.prefs.setStringPref("kit.theme.default", fallback);
+  return css;
+}
+
 class LiveCSS {
   constructor() {
     this.sheets = { chrome: null, content: null }; // current data: sheets
@@ -92,7 +128,7 @@ class LiveCSS {
     const deps = new Set();
     const user = name => PathUtils.join(dir, "user", name); // personal layer (bin/sync)
     const chrome =
-      (await flatten(kit("theme.css"), deps)) +
+      (await spaceThemes(dir, deps)) +
       (await flatten(kit("mods.css"), deps)) +
       (await bodyOf(PathUtils.join(dir, "userChrome.css"), deps)) +
       (await flatten(user("userChrome.css"), deps));

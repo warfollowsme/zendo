@@ -122,7 +122,7 @@ From the base folder (`~/.local/share/zendo`):
 
 | Command | What it does |
 |---|---|
-| `bin/theme` | list themes; `bin/theme <name>` — enable, `bin/theme zen-default` — restore Zen's colors |
+| `bin/theme` | list themes; `bin/theme <name>` — the default theme, `bin/theme zen-default` — Zen's colors. Each space can have its own theme: the Theme list in Create Space and on top of Zen's space theme picker ("Zen" shows the picker's color controls) |
 | `bin/mod` | UI mods; `bin/mod on <name>` / `bin/mod off <name>` |
 | `bin/site` | site styles (and their `<name>.js` scripts, if any); `bin/site on <name>` / `bin/site off <name>` |
 | `bin/update` | update the base from GitHub |
