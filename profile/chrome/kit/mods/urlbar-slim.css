@@ -3,9 +3,9 @@
  * @description A slimmer address bar (30px instead of 36px), the same height while viewing and while editing.
  */
 
-/* Высоту строки Firefox держит в --urlbar-height, которую сам пишет инлайном
-   в style строки (по умолчанию 34px); от неё считаются и раскрытая строка, и
-   мод urlbar-dropdown. Пользовательский !important перебивает инлайн. */
+/* Firefox keeps the bar height in --urlbar-height, which it writes inline
+   into the bar's style (34px by default); the expanded bar and the
+   urlbar-dropdown mod are both derived from it. A user !important beats inline. */
 #urlbar {
   --urlbar-height: 30px !important;
   height: 30px !important;

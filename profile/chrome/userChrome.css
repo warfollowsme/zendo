@@ -1,17 +1,17 @@
 /*
- * userChrome.css — внешний вид самого браузера (вкладки, панели, адресная строка).
+ * userChrome.css — the look of the browser itself (tabs, panels, address bar).
  *
- * Тема, моды и личные правки подключаются импортами ниже:
- *   bin/theme <имя>      — сменить тему (пишет ~/.config/zendo/current/theme.css)
- *   bin/mod on|off <имя> — включить/выключить мод (пишет current/mods.css)
- *   user/userChrome.css  — личные мелкие правки (~/.config/zendo/userChrome.css)
- * kit/ и user/ в профиле собирает bin/sync из базы и личного слоя.
- * Этот файл — часть базы: свои правки пиши в личный слой, а не сюда.
+ * The theme, mods and personal tweaks are pulled in by the imports below:
+ *   bin/theme <name>     — switch theme (writes ~/.config/zendo/current/theme.css)
+ *   bin/mod on|off <name> — enable/disable a mod (writes current/mods.css)
+ *   user/userChrome.css  — small personal tweaks (~/.config/zendo/userChrome.css)
+ * kit/ and user/ in the profile are built by bin/sync from the base and personal layer.
+ * This file is part of the base: put your edits in the personal layer, not here.
  *
- * Условие not -moz-pref("kit.css.live"): со скриптами (bin/install
- * --autoconfig) всё это подключает JS/kit-live-css.sys.mjs — сразу, без
- * перезапуска, — и импорты отключаются. Без скриптов работают импорты,
- * а изменения видны после перезапуска.
+ * The not -moz-pref("kit.css.live") condition: with scripts (bin/install
+ * --autoconfig) JS/kit-live-css.sys.mjs loads all of this — instantly, without
+ * a restart — and the imports are disabled. Without scripts the imports work,
+ * and changes show up after a restart.
  */
 @import url("kit/theme.css") not -moz-pref("kit.css.live");
 @import url("kit/mods.css") not -moz-pref("kit.css.live");

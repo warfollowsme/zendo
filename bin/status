@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Что подключено: профиль, личный слой, тема, моды, загрузчик скриптов, версии Zen.
+# What is connected: profile, personal layer, theme, mods, script loader, Zen versions.
 source "$(dirname "$0")/_lib.sh"
 
 info "${C_BOLD}Base:${C_RESET} $KIT_ROOT"

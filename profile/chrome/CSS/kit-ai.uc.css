@@ -3,17 +3,17 @@
 // @description    Look of the assistant panel (JS/kit-ai.uc.js)
 // ==/UserScript== */
 
-/* Цвета берутся из переменных Zen, поэтому панель следует за любой темой. */
+/* Colors come from Zen variables, so the panel follows any theme. */
 
-/* Панель стоит внутри панели-острова раскладки (kit-layout.uc.css):
-   рамку, фон и размер даёт раскладка. */
+/* The panel sits inside a layout island panel (kit-layout.uc.css):
+   the layout provides the border, background and size. */
 #kit-ai-panel {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   color: var(--toolbar-color, FieldText);
-  font-size: 13.75px; /* как подписи вкладок Zen */
+  font-size: 13.75px; /* like Zen tab labels */
   --kit-ai-pill: var(--zen-library-pill-bg, color-mix(in srgb, currentColor 7%, transparent));
   --kit-ai-pill-hover: var(--zen-library-pill-hover-bg, color-mix(in srgb, currentColor 12%, transparent));
 }
@@ -31,7 +31,7 @@
   }
 }
 
-/* иконка-маска цвета текста: <span class="kit-ai-icon" style="--kit-icon: url(…)"> */
+/* a text-colored mask icon: <span class="kit-ai-icon" style="--kit-icon: url(…)"> */
 .kit-ai-icon {
   flex-shrink: 0;
   width: 16px;
@@ -40,7 +40,7 @@
   mask: var(--kit-icon) center / contain no-repeat;
 }
 
-/* ---------- шапка: кнопки встраиваются в шапку панели раскладки ---------- */
+/* ---------- header: buttons go into the layout panel header ---------- */
 
 .kit-ai-header {
   display: flex;
@@ -70,7 +70,7 @@
   background: color-mix(in srgb, currentColor 10%, transparent) !important;
 }
 
-/* ---------- подключение ---------- */
+/* ---------- connection ---------- */
 
 .kit-ai-connect {
   justify-content: center;
@@ -203,7 +203,7 @@
   opacity: 0.5;
 }
 
-/* ---------- история ---------- */
+/* ---------- history ---------- */
 
 .kit-ai-history {
   overflow-y: auto;
@@ -267,7 +267,7 @@
   visibility: visible;
 }
 
-/* ---------- лента ---------- */
+/* ---------- feed ---------- */
 
 .kit-ai-log {
   flex: 1;
@@ -278,10 +278,10 @@
   gap: 10px;
   user-select: text;
 
-  /* лента фокусируется по клику (для Cmd+C), рамку фокуса не рисуем */
+  /* the feed takes focus on click (for Cmd+C); no focus ring */
   outline: none;
 
-  /* элементы ленты не сжимаются — лента прокручивается */
+  /* feed items don't shrink — the feed scrolls */
   & > * {
     flex-shrink: 0;
   }
@@ -308,7 +308,7 @@
   margin: 6px 0 4px;
 }
 
-/* сообщение пользователя — «пилюля», как строки «Библиотеки» */
+/* user message — a "pill", like Library rows */
 .kit-ai-user {
   align-self: flex-end;
   max-width: 90%;
@@ -339,7 +339,7 @@
   opacity: 0.6;
 }
 
-/* шаги агента: «✓ reading the page» */
+/* agent steps: "✓ reading the page" */
 .kit-ai-tool {
   font-size: 12px;
   opacity: 0.55;
@@ -386,7 +386,7 @@
   cursor: pointer;
 }
 
-/* ---------- запрос разрешения ---------- */
+/* ---------- permission request ---------- */
 
 .kit-ai-approve {
   padding: 10px 12px;
@@ -425,7 +425,7 @@
   }
 }
 
-/* ---------- поле ввода: вложения, текст, строка с моделью и отправкой ---------- */
+/* ---------- input: attachments, text, model and send row ---------- */
 
 .kit-ai-composer {
   display: flex;
@@ -449,7 +449,7 @@
   gap: 4px;
 }
 
-/* «пилюля» вложения или вкладки */
+/* attachment or tab "pill" */
 .kit-ai-chip {
   appearance: none;
   display: inline-flex;
@@ -544,7 +544,7 @@
   flex: 1;
 }
 
-/* выбор модели и усилия: «✳ claude-opus-5-5  Default» */
+/* model and effort picker: "✳ claude-opus-5-5  Default" */
 .kit-ai-select {
   appearance: none;
   display: inline-flex;
@@ -593,7 +593,7 @@
   opacity: 0.35;
 }
 
-/* кнопка отправки — круглая, цвета акцента */
+/* send button — round, accent-colored */
 .kit-ai-send {
   width: 28px !important;
   height: 28px !important;
@@ -604,13 +604,13 @@
   color: var(--zen-colors-primary-foreground, white) !important;
 }
 
-/* файлы тащат в панель */
+/* files dragged into the panel */
 #kit-ai-panel[dragging] .kit-ai-composer {
   box-shadow: inset 0 0 0 2px var(--zen-accent-button-color, AccentColor);
   background: color-mix(in srgb, var(--zen-accent-button-color, AccentColor) 10%, transparent);
 }
 
-/* полоска «думает» над лентой */
+/* the "thinking" bar above the feed */
 #kit-ai-panel[busy]::before {
   content: "";
   flex-shrink: 0;

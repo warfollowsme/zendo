@@ -3,9 +3,9 @@
 // @description    While the address bar is not being edited, it shows the page title instead of the URL; click to edit the URL
 // ==/UserScript==
 
-// Поверх поля адреса — подпись с заголовком страницы. Видна, пока строка не в
-// фокусе и в ней адрес текущей страницы (pageproxystate="valid"); при клике
-// подпись прячется, и поле с адресом выделяется как обычно. Стили —
+// A caption with the page title over the address field. Visible while the bar isn't
+// focused and holds the current page's address (pageproxystate="valid"); on click
+// the caption hides and the address is selected as usual. Styles:
 // CSS/urlbar-title.uc.css.
 (function () {
   const box = document.querySelector("#urlbar .urlbar-input-box");
@@ -20,7 +20,7 @@
     const tab = gBrowser.selectedTab;
     const url = tab.linkedBrowser.currentURI?.spec || "";
     const label = tab.label || "";
-    // у пустых и служебных страниц заголовка нет или он равен адресу — оставляем адрес
+    // blank and internal pages have no title, or it equals the address: keep the address
     const show = label && label !== url && !/^about:(blank|newtab|home)$/.test(url);
     title.textContent = show ? label : "";
     box.toggleAttribute("kit-has-title", !!show);

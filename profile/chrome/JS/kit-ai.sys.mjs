@@ -3,20 +3,20 @@
 // @description    Shared part of the assistant: local MCP server and Claude Code launcher
 // ==/UserScript==
 
-// Фоновый модуль fx-autoconfig: загружается один раз при старте браузера.
-// Окна (kit-ai.uc.js) берут отсюда KitAI и создают свою панель.
+// Background fx-autoconfig module: loaded once at browser startup.
+// Windows (kit-ai.uc.js) take KitAI from here and create their own panel.
 //
-// Как это работает:
-//   панель → запускает `claude -p` (Claude Code) в папке этого репозитория;
-//   Claude Code → вызывает инструменты браузера через MCP-сервер, который
-//   слушает только 127.0.0.1 на случайном порту и пускает лишь с токеном.
-// Сам браузер в сеть не ходит — к модели обращается Claude Code.
+// How it works:
+//   panel → launches `claude -p` (Claude Code) in this repository's folder;
+//   Claude Code → calls browser tools through an MCP server that listens
+//   only on 127.0.0.1 on a random port and accepts only requests with a token.
+// The browser itself makes no network requests — Claude Code talks to the model.
 
 import { Subprocess } from "resource://gre/modules/Subprocess.sys.mjs";
 
-// ---- Пути ----
+// ---- Paths ----
 
-// Репозиторий: userChrome.css в профиле — симлинк на <repo>/profile/chrome/userChrome.css.
+// Repository: userChrome.css in the profile is a symlink to <repo>/profile/chrome/userChrome.css.
 function findRepo() {
   const pref = Services.prefs.getStringPref("kit.ai.repo", "");
   if (pref) {
@@ -35,7 +35,7 @@ function findRepo() {
   return path;
 }
 
-// Личный слой: chrome/user в профиле — ссылка на него (bin/sync).
+// Personal layer: chrome/user in the profile links to it (bin/sync).
 function findUserDir() {
   const file = Services.dirsvc.get("UChrm", Ci.nsIFile);
   file.append("user");
@@ -46,7 +46,7 @@ function findUserDir() {
   return file.path;
 }
 
-// Личные указания для ИИ (<личный слой>/AGENTS.md) — пустая строка, если их нет.
+// Personal AI instructions (<personal layer>/AGENTS.md) — an empty string if there are none.
 async function personalAgents() {
   const dir = findUserDir();
   if (!dir) {
@@ -85,7 +85,7 @@ async function findClaude() {
   }
 }
 
-// ---- MCP-сервер (Streamable HTTP, только JSON-ответы) ----
+// ---- MCP server (Streamable HTTP, JSON responses only) ----
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -97,7 +97,7 @@ class McpServer {
     this.onCall = onCall;
     this.token = Services.uuid.generateUUID().toString().slice(1, -1);
     this.socket = Cc["@mozilla.org/network/server-socket;1"].createInstance(Ci.nsIServerSocket);
-    this.socket.init(-1, true, -1); // любой свободный порт, только loopback
+    this.socket.init(-1, true, -1); // any free port, loopback only
     this.socket.asyncListen(this);
   }
 
@@ -113,9 +113,9 @@ class McpServer {
 
   onStopListening() {}
 
-  // Соединение держим открытым (keep-alive): Claude Code переиспользует
-  // соединения, и каждое закрытие с нашей стороны считает обрывом — после
-  // трёх таких отключает сервер. Запросы на одном соединении — по очереди.
+  // Keep the connection open (keep-alive): Claude Code reuses connections
+  // and treats every close on our side as a drop — after three of those it
+  // disconnects the server. Requests on one connection are handled in turn.
   onSocketAccepted(server, transport) {
     const input = transport.openInputStream(0, 0, 0).QueryInterface(Ci.nsIAsyncInputStream);
     const output = transport.openOutputStream(Ci.nsITransport.OPEN_BLOCKING, 0, 0);
@@ -170,7 +170,7 @@ class McpServer {
         try {
           available = input.available();
         } catch (e) {
-          close(); // клиент закрыл соединение
+          close(); // the client closed the connection
           return;
         }
         if (available > 0) {
@@ -181,7 +181,7 @@ class McpServer {
           buffer = merged;
         }
         if (busy) {
-          wait(); // следующий запрос дочитаем и обработаем после текущего
+          wait(); // finish reading and handle the next request after the current one
         } else {
           next();
         }
@@ -215,7 +215,7 @@ class McpServer {
   async rpc(message) {
     const { id, method, params } = message;
     if (id === undefined || id === null) {
-      return null; // уведомление (notifications/initialized и т.п.)
+      return null; // a notification (notifications/initialized etc.)
     }
     const reply = result => ({ jsonrpc: "2.0", id, result });
     switch (method) {
@@ -292,14 +292,14 @@ function writeResponse(out, { status, json, body = "", headers = {} }, closing) 
   out.flush();
 }
 
-// ---- Процесс Claude Code ----
+// ---- Claude Code process ----
 
-// Один процесс на разговор: сообщения уходят в stdin построчно (stream-json),
-// события приходят из stdout. Если процесс завершился (стоп, ошибка),
-// следующее сообщение поднимет новый с --resume и тем же разговором.
+// One process per chat: messages go to stdin line by line (stream-json),
+// events come from stdout. If the process has exited (stop, error),
+// the next message starts a new one with --resume and the same chat.
 class ClaudeSession {
   constructor({ args, onEvent, onExit }) {
-    this.args = args; // () → string[] — аргументы без --resume
+    this.args = args; // () → string[] — arguments without --resume
     this.onEvent = onEvent;
     this.onExit = onExit;
     this.sessionId = null;
@@ -311,7 +311,7 @@ class ClaudeSession {
     return !!this.proc;
   }
 
-  // content — строка или блоки сообщения (text, image)
+  // content — a string or message blocks (text, image)
   async send(content) {
     if (!this.proc) {
       await this.spawn();
@@ -404,8 +404,8 @@ class ClaudeSession {
   }
 }
 
-// Вошёл ли Claude Code в аккаунт: `claude auth status` → { loggedIn, email, … }.
-// Сам вход — в терминале (`claude auth login`), он общий для всех запусков claude.
+// Whether Claude Code is signed in: `claude auth status` → { loggedIn, email, … }.
+// Signing in happens in a terminal (`claude auth login`) and is shared by all claude runs.
 async function claudeAuth() {
   const command = await findClaude();
   if (!command) {

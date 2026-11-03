@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Обновляет базу Zendo из GitHub. Личный слой ($ZENDO_USER) не трогает.
-#   bin/update   — скачать обновления, собрать профиль заново
+# Updates the Zendo base from GitHub. Leaves the personal layer ($ZENDO_USER) alone.
+#   bin/update   — download updates and rebuild the profile
 source "$(dirname "$0")/_lib.sh"
 
 command -v git >/dev/null 2>&1 || die "git is not installed"
@@ -24,7 +24,7 @@ info "${C_BOLD}What's new:${C_RESET}"
 git -C "$KIT_ROOT" log --format='  %s' "$before..$after"
 
 "$KIT_ROOT/bin/sync" --quiet || true
-# загрузчик скриптов в программе Zen мог измениться
+# the script loader in the Zen app may have changed
 if RES="$(detect_app_resources 2>/dev/null)" && [ -f "$RES/config.js" ] &&
    ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
   warn "The script loader changed: it is updated on the next launch via Zendo.app (or bin/install --autoconfig)"

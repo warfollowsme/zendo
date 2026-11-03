@@ -3,9 +3,9 @@
 // @description    Look of the folder icons (JS/folder-icons.uc.js)
 // ==/UserScript== */
 
-/* Как у папок Arc: тонкий контур цветом текста. Закрытая — одна форма с
-   язычком; открытая (state="open", ставит Zen) — задняя стенка и наклонённая
-   передняя, значок переезжает на переднюю. */
+/* Like Arc folders: a thin outline in the text color. Closed is a single shape with
+   a tab; open (state="open", set by Zen) is a back wall plus a tilted
+   front wall, and the icon moves onto the front one. */
 .kit-folder-svg {
   filter: none !important;
 
@@ -17,7 +17,7 @@
     transition: opacity 0.15s ease;
   }
 
-  /* закрыта: передней стенки нет, и маска ничего не вырезает */
+  /* closed: no front wall, and the mask cuts nothing */
   & :is(.kit-folder-front, .kit-folder-cut-front) {
     opacity: 0;
     transition: opacity 0.15s ease;
@@ -27,7 +27,7 @@
     opacity: 1;
   }
 
-  /* у Zen иконка и точки перекашиваются вместе с его стенками — здесь своё */
+  /* Zen skews the icon and dots together with its walls; we do our own here */
   & :is(.icon, .dots),
   & image {
     transform: none !important;
@@ -37,7 +37,7 @@
     fill: currentColor;
   }
 
-  /* значок внутри папки — цветом текста (маска + заливка, см. folder-icons.uc.js) */
+  /* icon inside the folder in the text color (mask + fill, see folder-icons.uc.js) */
   & .kit-folder-icon-fill {
     fill: currentColor;
     fill-opacity: 0.85;
@@ -46,7 +46,7 @@
     transition: transform 0.15s ease;
   }
 
-  /* открыта: значок на передней стенке и наклонён вместе с ней */
+  /* open: icon on the front wall, tilted with it */
   &[state="open"] .kit-folder-icon-fill {
     transform: translate(0.6px, 2.2px) scale(0.85) skewX(-17deg) !important;
   }

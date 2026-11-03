@@ -1,26 +1,26 @@
-# Личный слой Zendo
+# Zendo personal layer
 
-Всё, что здесь лежит, — твоё: обновления Zendo (`bin/update`) эту папку не
-трогают. Папка — отдельный git-репозиторий, так что любую правку можно
-откатить.
+Everything here is yours: Zendo updates (`bin/update`) don't touch this
+folder. The folder is a separate git repository, so any change can be
+reverted.
 
 ```
-themes/*.css        свои темы        → bin/theme <имя>
-mods/*.css          свои моды        → bin/mod on <имя>
-sites/*.css         стили сайтов     → bin/site on <имя>
-JS/*.uc.js          свои скрипты     (после перезапуска Zen)
-CSS/*.uc.css        стили к скриптам
-user.js             свои настройки about:config
-userChrome.css      мелкие правки интерфейса
-userContent.css     мелкие правки страниц
-AGENTS.md           личные указания для ИИ-помощника
-extensions.md       расширения из Chrome и чем их заменить
-current/            выбранная тема, включённые моды и сайты — пишут bin/theme,
-                    bin/mod, bin/site; руками не правь
+themes/*.css        your themes        → bin/theme <name>
+mods/*.css          your mods          → bin/mod on <name>
+sites/*.css         site styles        → bin/site on <name>
+JS/*.uc.js          your scripts       (after restarting Zen)
+CSS/*.uc.css        styles for scripts
+user.js             your about:config preferences
+userChrome.css      small UI tweaks
+userContent.css     small page tweaks
+AGENTS.md           personal instructions for the AI assistant
+extensions.md       Chrome extensions and their replacements
+current/            chosen theme, enabled mods and sites — written by bin/theme,
+                    bin/mod, bin/site; do not edit by hand
 ```
 
-Файл с тем же именем, что у Zendo, заменяет его: например, свой
-`mods/hide-tab-close.css` вместо встроенного.
+A file with the same name as one in Zendo replaces it: for example, your own
+`mods/hide-tab-close.css` instead of the built-in one.
 
-Добавил или удалил файл — запусти `bin/sync` из папки Zendo (bin/mod,
-bin/theme и запуск через Zendo.app делают это сами).
+Added or removed a file — run `bin/sync` from the Zendo folder (bin/mod,
+bin/theme and launching via Zendo.app do it themselves).

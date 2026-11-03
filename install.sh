@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Установка Zendo одной командой:
+# Install Zendo with one command:
 #   curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh | bash
 #
-# 1. Проверяет, что есть macOS, git и Zen (и что Zen уже запускался — нужен профиль).
-# 2. Скачивает Zendo в ~/.local/share/zendo (или обновляет, если уже скачан).
-# 3. Подключает его к профилю Zen и ставит загрузчик скриптов (bin/install --autoconfig).
-# 4. Собирает Zendo.app в /Applications (или ~/Applications) и запускает его.
+# 1. Checks for macOS, git and Zen (and that Zen has been run once — a profile is needed).
+# 2. Downloads Zendo to ~/.local/share/zendo (or updates it if already there).
+# 3. Connects it to the Zen profile and installs the script loader (bin/install --autoconfig).
+# 4. Builds Zendo.app in /Applications (or ~/Applications) and launches it.
 #
-# Переменные: ZENDO_HOME — куда скачать, ZENDO_USER — личный слой
-# (по умолчанию ~/.config/zendo), ZENDO_REPO — откуда скачать.
+# Variables: ZENDO_HOME — where to download, ZENDO_USER — personal layer
+# (default ~/.config/zendo), ZENDO_REPO — where to download from.
 set -euo pipefail
 
 REPO="${ZENDO_REPO:-https://github.com/warfollowsme/zendo.git}"
@@ -16,7 +16,7 @@ DEST="${ZENDO_HOME:-$HOME/.local/share/zendo}"
 
 say()  { printf '\033[1m%s\033[0m\n' "$*"; }
 die()  { printf '\033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
-ask()  { # ask "Вопрос" — да, если ответили y; без терминала — нет
+ask()  { # ask "Question" — yes if answered y; no without a terminal
   local answer=""
   [ -r /dev/tty ] || return 1
   printf '%s [y/N] ' "$1" > /dev/tty

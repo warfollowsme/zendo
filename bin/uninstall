@@ -35,8 +35,8 @@ if zen_running && [ "$DRY" = 0 ] && [ "$FORCE" = 0 ]; then
   die "Zen is running. Quit it (Cmd+Q) and rerun this command."
 fi
 
-# 1. Убрать то, что создал проект: ссылки, папки со ссылками, собранный user.js.
-#    Сам личный слой ($ZENDO_USER) остаётся на месте.
+# 1. Remove what the project created: links, folders of links, the built user.js.
+#    The personal layer itself ($ZENDO_USER) stays in place.
 for p in "$PROFILE/chrome"/* "$PROFILE/user.js"; do
   if { [ -e "$p" ] || [ -L "$p" ]; } && is_ours "$p"; then
     run rm -rf "$p"
@@ -44,7 +44,7 @@ for p in "$PROFILE/chrome"/* "$PROFILE/user.js"; do
   fi
 done
 
-# 2. Вернуть бэкап (последний, сделанный для этого профиля и ещё не возвращённый)
+# 2. Restore the backup (the latest one made for this profile and not yet restored)
 BACKUP=""
 if [ -d "$KIT_STATE/backups" ]; then
   for d in "$KIT_STATE/backups"/*; do
@@ -70,7 +70,7 @@ else
   info "${C_DIM}No backup for this profile — nothing to restore.${C_RESET}"
 fi
 
-# 3. Загрузчик скриптов
+# 3. Script loader
 if [ "$AUTOCONFIG" = 1 ]; then
   RES="$(detect_app_resources)" || die "Zen application not found. Specify the path: --app /Applications/Zen.app"
   if [ -f "$RES/config.js" ] && cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
@@ -88,7 +88,7 @@ if [ "$AUTOCONFIG" = 1 ]; then
   [ "$DRY" = 0 ] && clear_startup_cache "$PROFILE"
 fi
 
-# 4. Пометить бэкап как возвращённый
+# 4. Mark the backup as restored
 if [ -n "$BACKUP" ]; then
   if [ -f "$BACKUP/program/config.js" ] && [ "$AUTOCONFIG" = 0 ]; then
     warn "the backup still contains the previous application config.js — restore it with bin/uninstall --autoconfig"

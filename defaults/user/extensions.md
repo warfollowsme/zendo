@@ -1,17 +1,18 @@
-# Расширения
+# Extensions
 
-Zen ставит расширения из магазина Firefox (addons.mozilla.org), а не из Chrome
-Web Store. Здесь — список расширений из Chrome и чем их заменить.
+Zen installs extensions from the Firefox store (addons.mozilla.org), not from
+the Chrome Web Store. This is a list of Chrome extensions and what to replace
+them with.
 
-Как проверять (для агента):
-1. Найти расширение на addons.mozilla.org — у многих есть версия для Firefox.
-2. Если нет — проверить, не умеет ли это Zen сам (вертикальные вкладки,
-   разделение экрана, пространства, Boosts для сайтов) или не решается ли
-   задача модом / стилем сайта в этом проекте.
-3. Если нет и этого — расширение можно попробовать поставить из Chrome Web
-   Store через CRX Installer (https://addons.mozilla.org/addon/crxinstaller/).
-   Работает не всегда; ставить только то, чему доверяешь.
+How to check (for the agent):
+1. Find the extension on addons.mozilla.org — many have a Firefox version.
+2. If not — check whether Zen can do it itself (vertical tabs, split view,
+   workspaces, Boosts for sites) or whether a mod / site style in this project
+   solves the task.
+3. If not that either — you can try installing the extension from the Chrome
+   Web Store via CRX Installer (https://addons.mozilla.org/addon/crxinstaller/).
+   It doesn't always work; install only what you trust.
 
-| Расширение в Chrome | Что делать в Zen | Ссылка | Статус |
+| Chrome extension | What to do in Zen | Link | Status |
 |---|---|---|---|
-| _пример: uBlock Origin_ | версия для Firefox (полная, не Lite) | https://addons.mozilla.org/firefox/addon/ublock-origin/ | — |
+| _example: uBlock Origin_ | Firefox version (full, not Lite) | https://addons.mozilla.org/firefox/addon/ublock-origin/ | — |

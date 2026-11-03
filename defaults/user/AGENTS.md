@@ -1,5 +1,5 @@
-# Личные указания для ИИ-помощника
+# Personal instructions for the AI assistant
 
-Этот файл читают Claude Code и ChatGPT в панели браузера вместе с AGENTS.md
-Zendo. Пиши сюда, что им нужно знать о тебе: на каком языке отвечать, как
-подписывать коммиты, что не трогать.
+Claude Code and ChatGPT in the browser panel read this file together with
+Zendo's AGENTS.md. Write here what they need to know about you: which language
+to answer in, how to write commit messages, what not to touch.

@@ -1,5 +1,5 @@
 /*
- * Личные правки интерфейса браузера — мелочи, которым не нужен отдельный мод.
- * Применяются сами через секунду после сохранения. Без !important почти
- * ничего не перебить. Правку больше пары строк лучше оформить модом в mods/.
+ * Personal browser UI tweaks — small things that don't need a separate mod.
+ * Applied automatically a second after saving. Almost nothing can be overridden
+ * without !important. A change longer than a couple of lines is better as a mod in mods/.
  */

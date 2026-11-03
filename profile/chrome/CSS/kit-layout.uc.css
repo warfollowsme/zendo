@@ -3,8 +3,8 @@
 // @description    Window grid, edge toolbars and island side panels (JS/kit-layout.uc.js)
 // ==/UserScript== */
 
-/* Все правила — только когда скрипт раскладки работает (:root[kit-layout]).
-   Выключили скрипт в Tools → userScripts — Zen выглядит как обычно. */
+/* All rules apply only while the layout script is running (:root[kit-layout]).
+   Disable the script in Tools → userScripts and Zen looks as usual. */
 
 :root[kit-layout] {
   --kit-strip-w: 44px;
@@ -15,12 +15,12 @@
   --kit-accent: var(--theme-accent, var(--zen-primary-color, AccentColor));
 }
 
-/* ---------- сетка окна ---------- */
+/* ---------- window grid ---------- */
 
 :root[kit-layout] #browser {
   display: grid !important;
-  /* ровно в окно: без явной высоты строки сетки растут по содержимому
-     (длинные списки истории и загрузок) и нижние зоны уезжают за край */
+  /* exactly window-sized: without an explicit height, grid rows grow with content
+     (long history and download lists) and the bottom zones slide off the edge */
   height: 100vh !important;
   max-height: 100vh !important;
   min-height: 0 !important;
@@ -31,18 +31,18 @@
     auto minmax(0, var(--kit-row-1, 1fr)) minmax(0, var(--kit-row-2, 0fr)) minmax(0, var(--kit-row-3, 0fr));
 }
 
-/* обёртка Zen вокруг адреса и сайта растворяется: её дети — ячейки сетки */
+/* Zen's wrapper around the URL bar and site dissolves: its children become grid cells */
 :root[kit-layout] #zen-appcontent-wrapper {
   display: contents !important;
 }
 
-/* раскрытая адресная строка — на своём месте, а не у верхнего края окна
-   (см. setupCenter в kit-layout.uc.js) */
+/* the expanded URL bar stays in place, not at the top edge of the window
+   (see setupCenter in kit-layout.uc.js) */
 :root[kit-layout] #urlbar[breakout-extend]:not([in-page]) {
   margin-top: var(--kit-navbar-top, 0px) !important;
 }
 
-/* верхняя полоса: светофор macOS и пространства цифрами */
+/* top bar: macOS traffic lights and numbered spaces */
 :root[kit-layout] #kit-titlebar {
   grid-column: 1 / -1;
   grid-row: 1;
@@ -103,7 +103,7 @@
   }
 }
 
-/* иконка пространства — в той же ячейке, что и номер, одного размера */
+/* space icon: in the same cell as the number, same size */
 .kit-workspace-emoji {
   font-size: 13px;
   line-height: 1;
@@ -116,7 +116,7 @@
   fill: currentColor;
 }
 
-/* Create Space — в конце переключателя */
+/* Create Space at the end of the switcher */
 .kit-workspace-create::before {
   content: "";
   width: 14px;
@@ -125,8 +125,8 @@
   mask: url("chrome://browser/skin/zen-icons/duplicate-tab.svg") center / contain no-repeat;
 }
 
-/* Зазор между центром и стороной — только когда на этой стороне открыта
-   панель; закрыта — центр стоит вплотную к тулбару, как и панели. */
+/* Gap between the center and a side only when a panel is open on that
+   side; when closed, the center sits flush against the toolbar, like panels do. */
 :root[kit-layout] #browser {
   --kit-gap-left: 0px;
   --kit-gap-right: 0px;
@@ -140,8 +140,8 @@
   --kit-gap-right: var(--kit-gap);
 }
 
-/* навигация и адресная строка — в верхней полосе, занимают всё место справа
-   от пространств */
+/* navigation and URL bar in the top bar, taking all the space to the right
+   of the spaces */
 :root[kit-layout] #zen-appcontent-navbar-wrapper {
   flex: 1;
   min-width: 0;
@@ -151,7 +151,7 @@
   background: transparent !important;
 }
 
-/* в центре — только сайт; зазор до стороны — только если на ней открыта панель */
+/* only the site in the center; gap to a side only if a panel is open there */
 :root[kit-layout] #zen-tabbox-wrapper {
   grid-column: 3;
   grid-row: 2 / 5;
@@ -162,30 +162,30 @@
   margin: 0 var(--kit-gap-right) var(--kit-gap) var(--kit-gap-left) !important;
 }
 
-/* разделённый экран Zen: между панелями — тот же зазор, что между островами */
+/* Zen split view: same gap between panes as between islands */
 :root[kit-layout] #tabbrowser-tabbox {
   --zen-split-row-gap: var(--kit-gap) !important;
   --zen-split-column-gap: var(--kit-gap) !important;
 }
 
-/* кнопка Split (меню: справа / слева / сверху / снизу) — иконка Zen split */
+/* Split button (menu: right / left / top / bottom): Zen split icon */
 #kit-split {
   list-style-image: url("chrome://browser/skin/zen-icons/split.svg");
 }
 
-/* иконки пунктов меню Split — цветом текста меню */
+/* Split menu item icons in the menu text color */
 #kit-split-menu menuitem {
-  /* иконки — resources/kit-layout/icons/split-*.svg с context-fill/stroke */
+  /* icons are resources/kit-layout/icons/split-*.svg with context-fill/stroke */
   -moz-context-properties: fill, fill-opacity, stroke;
   fill: currentColor;
   stroke: currentColor;
 }
 
-/* Группа страницы по центру окна: назад/вперёд/обновить — адресная строка —
-   зум, полный экран, Split. Свободное место делят auto-поля по краям группы;
-   разницу в ширине соседей (пространства слева, расширения справа)
-   компенсирует отступ, который считает setupNavBalance() в kit-layout.uc.js.
-   Расширения и меню — у правого края. */
+/* Page group centered in the window: back/forward/reload, URL bar,
+   zoom, fullscreen, Split. Auto margins on the group's edges share the free space;
+   the width difference between neighbors (spaces left, extensions right)
+   is compensated by padding computed by setupNavBalance() in kit-layout.uc.js.
+   Extensions and menu sit at the right edge. */
 :root[kit-layout] #urlbar-container {
   max-width: min(760px, 40vw) !important;
 }
@@ -202,14 +202,14 @@
   padding-inline: var(--kit-nav-pad-start, 0px) var(--kit-nav-pad-end, 0px) !important;
 }
 
-/* Закреплённые расширения (и всё после Split) — у правого края: отступ
-   справа нужен только для центровки группы страницы, а значки сдвигаем на
-   его ширину (translate раскладку не меняет — промежутки закрывает flex). */
+/* Pinned extensions (and everything after Split) at the right edge: the right
+   padding is only for centering the page group, so the icons are shifted by
+   its width (translate doesn't affect layout; flex closes the gaps). */
 :root[kit-layout] #kit-split ~ * {
   translate: var(--kit-nav-pad-end, 0px) 0 !important;
 }
 
-/* крестик в мини-меню панели разделённого экрана — рядом с кнопками Zen */
+/* close button in the split view pane's mini menu, next to Zen's buttons */
 .zen-view-splitter-header .kit-split-close {
   list-style-image: url("chrome://browser/skin/zen-icons/close.svg");
 
@@ -219,7 +219,7 @@
   }
 }
 
-/* ---------- тулбары ---------- */
+/* ---------- toolbars ---------- */
 
 :root[kit-layout] .kit-strip {
   grid-row: 2 / 5;
@@ -255,14 +255,14 @@
 }
 
 .kit-zone-bottom {
-  flex-direction: column-reverse; /* нижняя зона растёт снизу вверх */
+  flex-direction: column-reverse; /* bottom zone grows from the bottom up */
 }
 
 .kit-zone[drop-target] {
   background: color-mix(in srgb, var(--kit-accent) 14%, transparent);
 }
 
-/* Значки — в стиле вкладок «Библиотеки» Zen (zen-library.css → .zen-library-tab) */
+/* Icons styled like Zen Library tabs (zen-library.css → .zen-library-tab) */
 .kit-tool-button,
 .kit-icon-button {
   appearance: none;
@@ -314,7 +314,7 @@
   transform: scale(0.94);
 }
 
-/* анимированная иконка раздела «Библиотеки»: кадр спрайта в окошке */
+/* animated Library section icon: a sprite frame in a window */
 .kit-sprite {
   display: block;
   width: var(--zen-library-sprite-size);
@@ -362,7 +362,7 @@
   cursor: grabbing !important;
 }
 
-/* ---------- панели-острова ---------- */
+/* ---------- island panels ---------- */
 
 :root[kit-layout] .kit-placed {
   position: relative;
@@ -427,7 +427,7 @@
   padding: 0 6px 0 12px;
 }
 
-/* как подпись пространства в панели вкладок Zen (.zen-current-workspace-indicator-name) */
+/* like the space name in Zen's tab panel (.zen-current-workspace-indicator-name) */
 .kit-panel-title {
   font-size: 13px;
   font-weight: 600;
@@ -452,7 +452,7 @@
   overflow: auto;
 }
 
-/* разделы «Библиотеки» Zen: её переменные и снятое ограничение ширины */
+/* Zen Library sections: its variables and the width limit removed */
 .kit-library-body {
   --zen-library-pill-bg: color-mix(in srgb, currentColor 7%, transparent);
   --zen-library-pill-hover-bg: color-mix(in srgb, currentColor 12%, transparent);
@@ -466,8 +466,8 @@
   container-type: inline-size;
 }
 
-/* Spaces: в «Библиотеке» карточка фиксированной ширины (242px) — в панели
-   она во всю ширину, пространства листаются по одному */
+/* Spaces: in the Library the card has a fixed width (242px); in the panel
+   it's full width and spaces scroll one at a time */
 .kit-library-body .zen-library-spaces {
   --zen-library-space-width: calc(100cqw - 24px);
   --zen-library-space-gap: 12px;
@@ -480,10 +480,10 @@
   background: transparent;
 }
 
-/* ---------- панель вкладок Zen как остров ---------- */
+/* ---------- Zen tab panel as an island ---------- */
 
 :root[kit-layout] #navigator-toolbox[kit-slot] {
-  /* Zen делает фон своей панели прозрачным — возвращаем фон острова */
+  /* Zen makes its panel background transparent; restore the island background */
   background: var(--kit-island-bg) !important;
   width: auto !important;
   min-width: 0 !important;
@@ -495,9 +495,9 @@
   margin: 0 -4px;
 }
 
-/* Нижняя полоса панели вкладок (переключатель пространств, «+», «Библиотека»)
-   не нужна: пространства и Create Space — в верхней полосе, Create Folder —
-   под папками, новая вкладка — в списке вкладок. */
+/* The tab panel's bottom strip (space switcher, "+", Library)
+   isn't needed: spaces and Create Space are in the top bar, Create Folder is
+   under the folders, new tab is in the tab list. */
 :root[kit-layout] #zen-sidebar-foot-buttons,
 :root[kit-layout] #zen-library-button,
 :root[kit-layout] #zen-sidebar-top-buttons,
@@ -506,7 +506,7 @@
   display: none !important;
 }
 
-/* ---------- изменение размеров ---------- */
+/* ---------- resizing ---------- */
 
 .kit-resize {
   display: none;
@@ -522,7 +522,7 @@
   cursor: ew-resize;
 }
 
-/* ручки ширины — в зазоре между панелью и сайтом */
+/* width handles in the gap between the panel and the site */
 :root[kit-layout] .kit-resize-left {
   grid-column: 3;
   justify-self: start;
@@ -552,7 +552,7 @@
   grid-row: var(--kit-right-line) / span 1;
 }
 
-/* ---------- панели Settings и Develop — в манере разделов «Библиотеки» ---------- */
+/* ---------- Settings and Develop panels in the style of Library sections ---------- */
 
 .kit-list-body {
   --zen-library-pill-bg: color-mix(in srgb, currentColor 7%, transparent);
@@ -569,7 +569,7 @@
   opacity: 0.6;
 }
 
-/* строка-переключатель: галочка, затем название (как в настройках Zen) */
+/* toggle row: checkbox, then name (as in Zen settings) */
 .kit-row {
   display: flex;
   align-items: center;
@@ -620,7 +620,7 @@
   }
 }
 
-/* выбор темы */
+/* theme picker */
 .kit-select {
   appearance: none;
   display: block;
@@ -673,7 +673,7 @@
     background: var(--zen-library-pill-hover-bg, color-mix(in srgb, currentColor 12%, transparent));
   }
 
-  /* как активный фильтр в «Библиотеке» */
+  /* like the active filter in the Library */
   &[selected] {
     background: color-mix(in srgb, currentColor 20%, transparent);
     font-weight: 700;
@@ -729,10 +729,10 @@
   }
 }
 
-/* ---------- полноэкранный режим сайта (видео, игры) ---------- */
+/* ---------- site fullscreen (video, games) ---------- */
 
-/* Firefox ставит :root[inDOMFullscreen] и прячет свои панели — прячем и
-   раскладку: тулбары, панели, полосу адреса; сайт — на всё окно. */
+/* Firefox sets :root[inDOMFullscreen] and hides its toolbars; hide the
+   layout too: toolbars, panels, URL bar; the site fills the window. */
 :root[kit-layout][inDOMFullscreen="true"] {
   & :is(.kit-strip, #kit-titlebar, .kit-placed, .kit-resize) {
     display: none !important;
@@ -745,11 +745,11 @@
   }
 }
 
-/* ---------- Create Folder под папками в панели вкладок ---------- */
+/* ---------- Create Folder under folders in the tab panel ---------- */
 
-/* Строка лежит первой в контейнере линии Clear: контейнер растёт по высоте
-   (у Zen он 22px с overflow: hidden), линия с Clear переносится ниже. Когда Zen
-   прячет линию (нет незакреплённых вкладок) — Create Folder остаётся. */
+/* The row is first in the Clear line's container: the container grows in height
+   (Zen gives it 22px with overflow: hidden) and the line with Clear wraps below. When Zen
+   hides the line (no unpinned tabs), Create Folder stays. */
 :root[kit-layout] .pinned-tabs-container-separator:has(> .kit-create-folder) {
   display: flex !important;
   flex-wrap: wrap;
@@ -759,12 +759,12 @@
   opacity: 1 !important;
   padding-inline: 0 !important;
 
-  /* у кнопок на линии Zen прячет подпись и иконку до наведения, рисует
-     вместо фона полоску и уменьшает шрифт — Create Folder это не нужно */
+  /* on buttons in the line Zen hides the label and icon until hover, draws
+     a strip instead of a background and shrinks the font; Create Folder doesn't need that */
   & > .kit-create-folder {
     order: -1;
     flex: 0 0 calc(100% - 4px);
-    margin-inline: 2px !important; /* у раздела свой отступ 6px: итог как у New Tab */
+    margin-inline: 2px !important; /* the section has its own 6px padding: the result matches New Tab */
     pointer-events: auto !important;
     background: transparent !important;
     font-size: inherit !important;
@@ -785,7 +785,7 @@
     }
   }
 
-  /* вторая строка: линия и Clear, как у Zen (строка 22px, линия 1px) */
+  /* second row: the line and Clear, as in Zen (22px row, 1px line) */
   & > toolbarbutton:not(.kit-create-folder) {
     height: 22px;
   }
@@ -806,7 +806,7 @@
   }
 }
 
-/* как строка «New Tab» Zen (#tabs-newtab-button): те же отступы и приглушённость */
+/* like Zen's "New Tab" row (#tabs-newtab-button): same padding and dimming */
 :root[kit-layout] .kit-create-folder {
   appearance: none;
   display: flex;
@@ -838,7 +838,7 @@
   }
 }
 
-/* Boosts: штатный поиск сверху; строки и действия — как в Extensions. */
+/* Boosts: built-in search on top; rows and actions as in Extensions. */
 :root[kit-layout] #kit-panel-boosts .zen-library-search-results {
   padding: 8px !important;
 }
@@ -900,8 +900,8 @@
   font: inherit !important;
 }
 
-/* иконки Zen бывают нарисованы обводкой цвета context-fill (boost.svg) —
-   маской такая выходит прозрачной, поэтому рисуем картинкой с context-paint */
+/* Zen icons are sometimes drawn with a context-fill stroke (boost.svg);
+   as a mask they come out transparent, so draw them as an image with context-paint */
 :root[kit-layout] .kit-boosts-control::before {
   mask: none !important;
   background: var(--kit-icon) center / contain no-repeat !important;
@@ -937,7 +937,7 @@
   padding: 12px !important;
 }
 
-/* ---------- Media: карточки (вид Zen), список, таблица ---------- */
+/* ---------- Media: cards (Zen view), list, table ---------- */
 
 .kit-media-views {
   display: flex;
@@ -950,7 +950,7 @@
   }
 }
 
-/* подписи нужны только списку и таблице */
+/* captions are only needed for list and table */
 :root[kit-layout] :is(.kit-media-name, .kit-media-type) {
   display: none;
   min-width: 0;
@@ -995,7 +995,7 @@
     display: none !important;
   }
 
-  /* как .zen-library-row-title */
+  /* like .zen-library-row-title */
   & .kit-media-name {
     display: block;
     font-size: 14px;

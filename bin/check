@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Быстрая проверка базы и личного слоя без запуска Zen:
-#   - все @import указывают на существующие файлы;
-#   - у тем есть @name, @scheme и все 7 переменных --theme-*;
-#   - у модов и стилей сайтов есть @name и @description;
-#   - фигурные скобки в CSS сбалансированы;
-#   - JS-скрипты синтаксически корректны (если установлен node).
+# Quick check of the base and personal layer without launching Zen:
+#   - every @import points to an existing file;
+#   - themes have @name, @scheme and all 7 --theme-* variables;
+#   - mods and site styles have @name and @description;
+#   - curly braces in CSS are balanced;
+#   - JS scripts are syntactically valid (if node is installed).
 source "$(dirname "$0")/_lib.sh"
 
 errors=0
@@ -17,8 +17,8 @@ rel() {
   esac
 }
 
-# Куда ведёт @import: пути в userChrome.css и current/*.css считаются от
-# папок профиля, которые собирает bin/sync (kit/ и user/).
+# Where an @import points: paths in userChrome.css and current/*.css are relative to
+# the profile folders built by bin/sync (kit/ and user/).
 import_target() {
   local css="$1" target="$2" kind
   case "$css" in
@@ -45,13 +45,13 @@ css_files() {
   return 0
 }
 
-# 1. @import и скобки
+# 1. @import and braces
 while IFS= read -r css; do
   [ -n "$css" ] || continue
   while IFS= read -r target; do
     [ -n "$target" ] || continue
     t="$(import_target "$css" "$target")"
-    case "$t" in "$ZENDO_USER"/*) [ -d "$ZENDO_USER" ] || continue ;; esac # ещё не установлен
+    case "$t" in "$ZENDO_USER"/*) [ -d "$ZENDO_USER" ] || continue ;; esac # not installed yet
     [ -f "$t" ] || fail "$(rel "$css"): @import \"$target\" — file not found"
   done <<EOF
 $(sed -n 's/^@import url("\([^"]*\)")[^;]*;.*$/\1/p' "$css")
@@ -63,7 +63,7 @@ done <<EOF
 $(css_files | sort)
 EOF
 
-# 2. Темы
+# 2. Themes
 for f in "$KIT_KIT_DIR"/themes/*.css "$ZENDO_USER"/themes/*.css; do
   [ -e "$f" ] || continue
   [ -n "$(css_meta "$f" name)" ] || fail "$(rel "$f"): missing @name"
@@ -76,7 +76,7 @@ for f in "$KIT_KIT_DIR"/themes/*.css "$ZENDO_USER"/themes/*.css; do
   done
 done
 
-# 3. Моды и сайты
+# 3. Mods and sites
 for f in "$KIT_KIT_DIR"/mods/*.css "$KIT_KIT_DIR"/sites/*.css "$ZENDO_USER"/mods/*.css "$ZENDO_USER"/sites/*.css; do
   [ -e "$f" ] || continue
   [ -n "$(css_meta "$f" name)" ] || fail "$(rel "$f"): missing @name"
@@ -97,7 +97,7 @@ if command -v node >/dev/null 2>&1; then
     js_checked=$((js_checked + 1))
     grep -q '// ==UserScript==' "$f" || fail "$(rel "$f"): missing // ==UserScript== header"
   done
-  # скрипты сайтов (JS/kit-site-scripts.sys.mjs) — домены в заголовке
+  # site scripts (JS/kit-site-scripts.sys.mjs) — domains in the header
   for f in "$KIT_KIT_DIR"/sites/*.js "$ZENDO_USER"/sites/*.js; do
     [ -e "$f" ] || continue
     out="$(node --check "$f" 2>&1)" || fail "$(rel "$f"): $out"
@@ -106,7 +106,7 @@ if command -v node >/dev/null 2>&1; then
     kit_file sites "$(basename "$f" .js)" >/dev/null ||
       fail "$(rel "$f"): needs a site style $(basename "$f" .js).css — the script is enabled with it"
   done
-  # модули для скриптов (actor'ы и т.п.) — без заголовка, только синтаксис
+  # modules for scripts (actors etc.) — no header, syntax only
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     out="$(node --check "$f" 2>&1)" || fail "$(rel "$f"): $out"
@@ -118,7 +118,7 @@ else
   warn "node is not installed — JS syntax was not checked"
 fi
 
-# 5. Скрипты bin/
+# 5. bin/ scripts
 for f in "$KIT_ROOT"/bin/* "$KIT_ROOT"/install.sh; do
   [ -f "$f" ] || continue
   out="$(bash -n "$f" 2>&1)" || fail "$(rel "$f"): $out"

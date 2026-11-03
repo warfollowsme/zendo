@@ -1,7 +1,7 @@
-// Значок Zendo: три кольца, как у Zen, но кистью и тушью — энсо на рисовой бумаге.
-// Собрать заново (рисунок детерминированный, меняются только параметры ниже):
+// Zendo icon: three rings like Zen's, but in brush and ink — ensō on rice paper.
+// Rebuild (the drawing is deterministic; only the parameters below change it):
 //   swiftc -O assets/make-icon.swift -o /tmp/zendo-icon && /tmp/zendo-icon assets
-// Создаёт assets/zendo.png (1024×1024) и assets/Zendo.icns (его берёт bin/app).
+// Creates assets/zendo.png (1024×1024) and assets/Zendo.icns (used by bin/app).
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 let size = 1024
 let center = CGPoint(x: 512, y: 512)
 
-// ---- случайности: детерминированный генератор и плавный шум
+// ---- randomness: a deterministic generator and smooth noise
 
 struct RNG {
   var s: UInt64
@@ -20,7 +20,7 @@ struct RNG {
   }
 }
 
-struct Wave { // сумма синусов со случайными фазами, примерно −1…1
+struct Wave { // sum of sines with random phases, roughly −1…1
   var parts: [(f: Double, p: Double, a: Double)]
   init(_ r: inout RNG, octaves: Int, base: Double) {
     var list: [(f: Double, p: Double, a: Double)] = []
@@ -43,7 +43,7 @@ func bitmap(_ w: Int, _ h: Int) -> CGContext {
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
 }
 
-// ---- мазок: кольцо из сотни волосков кисти; к концу тушь кончается и мазок сохнет
+// ---- stroke: a ring of a hundred brush hairs; toward the end the ink runs out and the stroke dries
 
 struct Ring {
   var radius: Double, width: Double, start: Double, sweep: Double, seed: UInt64
@@ -53,17 +53,17 @@ func paint(_ ctx: CGContext, _ ring: Ring) {
   var r = RNG(s: ring.seed)
   let radiusWave = Wave(&r, octaves: 3, base: 2 * .pi * 1.3)
   let widthWave = Wave(&r, octaves: 3, base: 2 * .pi * 1.7)
-  let clumps = Wave(&r, octaves: 3, base: 2 * .pi * 2.5) // пучки волосков по ширине кисти
-  let drift = (r.next() - 0.5) * 18                        // хвост уходит внутрь или наружу
+  let clumps = Wave(&r, octaves: 3, base: 2 * .pi * 2.5) // hair clumps across the brush width
+  let drift = (r.next() - 0.5) * 18                        // the tail drifts inward or outward
   let bristles = 110
   let length = ring.radius * abs(ring.sweep)
   let steps = Int(length * 1.4)
   ctx.setFillColor(CGColor(srgbRed: 0.07, green: 0.065, blue: 0.06, alpha: 1))
 
   for b in 0..<bristles {
-    let u = Double(b) / Double(bristles - 1) * 2 - 1 // −1 внешний край … 1 внутренний
+    let u = Double(b) / Double(bristles - 1) * 2 - 1 // −1 outer edge … 1 inner
     let ink = 0.80 + 0.16 * clumps.at(u) + 0.08 * (r.next() - 0.5) - 0.18 * pow(abs(u), 3)
-    // скруглённое начало мазка: края кисти касаются бумаги чуть позже середины
+    // rounded stroke start: the brush edges touch the paper a bit after the middle
     let begin = ring.width * 0.62 * (1 - sqrt(1 - u * u)) / length + 0.006 * r.next()
     let jitter = Wave(&r, octaves: 2, base: 2 * .pi * 4)
     let breaks = Wave(&r, octaves: 3, base: 2 * .pi * 30)
@@ -75,8 +75,8 @@ func paint(_ ctx: CGContext, _ ring: Ring) {
       if t < begin { continue }
       let left = ink - t + 0.07 * breaks.at(t)
       if left <= 0 { continue }
-      let press = 1 + 0.28 * (1 - smooth(0, 0.07, t))   // нажим в начале
-      let lift = 1 - 0.4 * smooth(0.55, 1, t)           // кисть поднимается к концу
+      let press = 1 + 0.28 * (1 - smooth(0, 0.07, t))   // pressure at the start
+      let lift = 1 - 0.4 * smooth(0.55, 1, t)           // the brush lifts toward the end
       let w = ring.width * press * lift * (1 + 0.1 * widthWave.at(t))
       let rad = ring.radius + 5 * radiusWave.at(t) + drift * smooth(0.6, 1, t)
         - u * w / 2 + edge * jitter.at(t)
@@ -89,7 +89,7 @@ func paint(_ ctx: CGContext, _ ring: Ring) {
   ctx.setAlpha(1)
 }
 
-// ---- бумага и кольца
+// ---- paper and rings
 
 let deg = Double.pi / 180
 let rings = [
@@ -114,7 +114,7 @@ ctx.saveGState()
 ctx.addPath(tilePath)
 ctx.clip()
 
-var noise = RNG(s: 5) // волокна бумаги
+var noise = RNG(s: 5) // paper fibers
 for _ in 0..<5000 {
   let x = 100 + noise.next() * 824, y = 100 + noise.next() * 824
   let a = noise.next() * .pi, l = 4 + noise.next() * 22
@@ -131,7 +131,7 @@ let vignette = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
                           locations: [0.55, 1])!
 ctx.drawRadialGradient(vignette, startCenter: center, startRadius: 0, endCenter: center, endRadius: 600, options: [])
 
-// тушь рисуем отдельно и кладём на бумагу с лёгким растеканием
+// draw the ink separately and lay it on the paper with a slight bleed
 let ink = bitmap(size, size)
 for ring in rings { paint(ink, ring) }
 ctx.saveGState()
@@ -141,7 +141,7 @@ ctx.restoreGState()
 
 ctx.restoreGState()
 
-// ---- файлы
+// ---- files
 
 func save(_ image: CGImage, _ path: String) {
   let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, UTType.png.identifier as CFString, 1, nil)!

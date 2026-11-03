@@ -1,18 +1,18 @@
-// ИИ-помощник: ChatGPT по подписке — вход через аккаунт ChatGPT, без API-ключа
-// и без Codex CLI. Работает в процессе браузера (импортируется из
-// JS/kit-ai.uc.js как chrome://userchrome/content/kit-ai/chatgpt.sys.mjs).
+// AI assistant: ChatGPT by subscription — sign in with a ChatGPT account, no API key
+// and no Codex CLI. Runs in the browser process (imported from
+// JS/kit-ai.uc.js as chrome://userchrome/content/kit-ai/chatgpt.sys.mjs).
 //
-// Вход — тот же OAuth, что у официального Codex: страница входа OpenAI
-// открывается вкладкой, браузер перехватывает переход на
-// http://localhost:1455/auth/callback и забирает код. Токен хранится в
-// менеджере паролей (about:logins → chrome://kit-ai), зашифрованным.
-// Запросы идут на chatgpt.com/backend-api/codex — это неофициальный для
-// сторонних программ путь: OpenAI может его поменять.
+// Sign-in uses the same OAuth as the official Codex: the OpenAI sign-in page
+// opens in a tab, the browser intercepts the redirect to
+// http://localhost:1455/auth/callback and takes the code. The token is stored
+// encrypted in the password manager (about:logins → chrome://kit-ai).
+// Requests go to chatgpt.com/backend-api/codex — an unofficial path for
+// third-party apps: OpenAI may change it.
 
 import { Subprocess } from "resource://gre/modules/Subprocess.sys.mjs";
 import { setTimeout, clearTimeout } from "resource://gre/modules/Timer.sys.mjs";
 
-const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"; // публичный OAuth-клиент Codex
+const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"; // Codex's public OAuth client
 const AUTH_URL = "https://auth.openai.com";
 const REDIRECT_URI = "http://localhost:1455/auth/callback";
 const API_URL = "https://chatgpt.com/backend-api/codex";
@@ -22,7 +22,7 @@ const LOGIN_REALM = "ChatGPT";
 const FALLBACK_MODEL = "gpt-6.1-sol";
 const MAX_STEPS = 60;
 
-// ---------------------------------------------------------------- вход
+// ---------------------------------------------------------------- sign-in
 
 function base64url(bytes) {
   let s = "";
@@ -43,7 +43,7 @@ function decodeJwt(token) {
   }
 }
 
-let cachedAuth; // undefined — ещё не читали, null — не вошли
+let cachedAuth; // undefined — not read yet, null — not signed in
 
 async function loadAuth() {
   if (cachedAuth !== undefined) {
@@ -101,9 +101,9 @@ async function tokenRequest(win, params) {
   return response.json();
 }
 
-// Открывает вход в новой вкладке (openTab(url) → tab) и ждёт, пока OpenAI
-// перенаправит на localhost:1455 с кодом. Сам порт не слушаем — запрос
-// перехватывается и отменяется до отправки.
+// Opens sign-in in a new tab (openTab(url) → tab) and waits for OpenAI to
+// redirect to localhost:1455 with the code. We don't listen on the port — the
+// request is intercepted and cancelled before it is sent.
 export async function login(win, openTab) {
   const verifier = base64url(win.crypto.getRandomValues(new Uint8Array(32)));
   const challenge = base64url(
@@ -211,7 +211,7 @@ function apiHeaders(auth, sessionId) {
   };
 }
 
-// Модели, доступные по подписке: тот же список, что показывает Codex.
+// Models available with the subscription: the same list Codex shows.
 let cachedModels = null;
 export async function models(win) {
   if (cachedModels) {
@@ -238,9 +238,9 @@ export async function models(win) {
   return [{ id: FALLBACK_MODEL, name: FALLBACK_MODEL }];
 }
 
-// ---------------------------------------------------------------- файлы и команды
+// ---------------------------------------------------------------- files and commands
 
-// У Claude Code свои инструменты для файлов; ChatGPT получает эти.
+// Claude Code has its own file tools; ChatGPT gets these.
 export const REPO_TOOLS = [
   {
     name: "read_file",
@@ -304,7 +304,7 @@ export const REPO_TOOLS = [
 ];
 
 const READ_ONLY_DIRS = ["zen-source", "profile/chrome/utils", "program", ".git"];
-// git -C <путь> — команды в личном слое
+// git -C <path> — commands in the personal layer
 const SAFE_COMMAND =
   /^(bin\/(check|status)|bin\/sync( --quiet)?|bin\/(theme|mod|site)( [\w.-]+)*|git (-C [^\s;&|`$<>\\]+ )?(status|diff|log)( [^;&|`$<>\n\\]*)?|git (-C [^\s;&|`$<>\\]+ )?(add|commit) [^;&|`$<>\n\\]+|ls( [^;&|`$<>\n\\]*)?|grep [^;&|`$<>\n\\]+)$/;
 
@@ -317,7 +317,7 @@ function shellPath() {
   return [`${home}/.local/bin`, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
 }
 
-// Личный слой (~/.config/zendo): chrome/user в профиле — ссылка на него.
+// Personal layer (~/.config/zendo): chrome/user in the profile links to it.
 function userDir() {
   const file = Services.dirsvc.get("UChrm", Ci.nsIFile);
   file.append("user");
@@ -330,14 +330,14 @@ function userDir() {
 
 const inside = (path, root) => !!root && (path === root || path.startsWith(root + "/"));
 
-// Путь для вывода: внутри репозитория — относительный, в личном слое — полный.
+// Path for output: relative inside the repository, absolute in the personal layer.
 const shown = (repo, path) => (inside(path, repo) ? path.slice(repo.length + 1) || "." : path);
 
 function resolvePath(repo, rel = ".", { write = false } = {}) {
   const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-  // PathUtils.join не принимает части со «/» внутри — относительный путь
-  // присоединяем через joinRelative, абсолютный берём как есть (и ниже
-  // проверяем, что он внутри репозитория или личного слоя)
+  // PathUtils.join doesn't accept parts containing "/" — a relative path is
+  // joined with joinRelative, an absolute one is taken as is (and checked
+  // below to be inside the repository or the personal layer)
   const path0 = String(rel || ".").replace(/^~(?=\/)/, Services.dirsvc.get("Home", Ci.nsIFile).path);
   file.initWithPath(path0.startsWith("/") ? path0 : PathUtils.joinRelative(repo, path0));
   file.normalize();
@@ -456,13 +456,13 @@ export async function callRepoTool(repo, name, args) {
   throw new Error(`Unknown tool ${name}`);
 }
 
-// ---------------------------------------------------------------- агент
+// ---------------------------------------------------------------- agent
 
-// Цикл: запрос к модели → вызовы инструментов → их результаты обратно → …
-// История хранится здесь же (store: false — на сервере ничего не остаётся).
+// Loop: request to the model → tool calls → their results back → …
+// The history is kept here (store: false — nothing stays on the server).
 export class ChatGPTAgent {
   // tools: [{ name, description, parameters }]
-  // callTool(name, args) → Promise<content[]> в формате MCP ({type:"text"} / {type:"image"})
+  // callTool(name, args) → Promise<content[]> in MCP format ({type:"text"} / {type:"image"})
   // ui: { textStart, textDelta, textEnd, tool(id, name, input), toolDone(id, isError), status(text) }
   label = "ChatGPT";
 
@@ -488,8 +488,8 @@ export class ChatGPTAgent {
     this.controller?.abort();
   }
 
-  // У каждого function_call в истории должен быть ответ, иначе запрос отклонят.
-  // После остановки или ошибки посреди хода дописываем недостающие.
+  // Every function_call in the history must have an output, or the request is rejected.
+  // After a stop or error mid-turn, add the missing ones.
   repairHistory() {
     const answered = new Set(this.history.filter(i => i.type === "function_call_output").map(i => i.call_id));
     for (const item of [...this.history]) {
@@ -499,7 +499,7 @@ export class ChatGPTAgent {
     }
   }
 
-  // content — строка или готовые части сообщения (input_text, input_image, input_file)
+  // content — a string or ready message parts (input_text, input_image, input_file)
   async send(content) {
     this.stopped = false;
     this.repairHistory();
@@ -514,7 +514,7 @@ export class ChatGPTAgent {
       }
       for (const call of calls) {
         if (this.stopped) {
-          // у каждого function_call должен быть ответ, иначе следующий запрос отклонят
+          // every function_call must have an output, or the next request is rejected
           this.history.push({ type: "function_call_output", call_id: call.call_id, output: "Stopped by the user" });
           continue;
         }
@@ -551,7 +551,7 @@ export class ChatGPTAgent {
     }
   }
 
-  // Куда и с какими заголовками идёт запрос; OpenAIAgent (api.sys.mjs) меняет только это.
+  // Where the request goes and with which headers; OpenAIAgent (api.sys.mjs) overrides only this.
   async endpoint(force) {
     const auth = await freshAuth(this.win, force);
     return { url: `${API_URL}/responses`, headers: apiHeaders(auth, this.sessionId) };
@@ -589,7 +589,7 @@ export class ChatGPTAgent {
     });
   }
 
-  // Один ответ модели. Возвращает вызовы инструментов (пусто — ход закончен).
+  // One model reply. Returns tool calls (empty — the turn is over).
   async respond() {
     let response;
     try {
@@ -610,7 +610,7 @@ export class ChatGPTAgent {
         const json = JSON.parse(body);
         message = json.detail || json.error?.message || json.message || body;
       } catch (e) {}
-      // модель без рассуждений (через API) не принимает reasoning/verbosity — повторяем без них
+      // a model without reasoning (via API) doesn't accept reasoning/verbosity — retry without them
       if (response.status === 400 && !this.plain && /reasoning|verbosity|include/i.test(message)) {
         this.plain = true;
         return this.respond();
@@ -664,7 +664,7 @@ export class ChatGPTAgent {
         }
         case "response.completed":
         case "response.incomplete":
-          // иногда encrypted_content приходит только в итоговом ответе
+          // sometimes encrypted_content arrives only in the final response
           for (const item of event.response?.output || []) {
             const stored = item.id && byId.get(item.id);
             if (stored && item.encrypted_content && !stored.encrypted_content) {

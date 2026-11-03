@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Перезапускает Zen, чтобы подхватить изменения в CSS, user.js и скриптах.
-#   bin/restart               — закрыть и открыть Zen
-#   bin/restart --clear-cache — ещё и очистить кэш запуска (нужно после правок JS)
+# Restarts Zen to pick up changes in CSS, user.js and scripts.
+#   bin/restart               — quit and reopen Zen
+#   bin/restart --clear-cache — also clear the startup cache (needed after JS edits)
 source "$(dirname "$0")/_lib.sh"
 
 CLEAR=0
 [ "${1:-}" = "--clear-cache" ] && CLEAR=1
 
-"$KIT_ROOT/bin/sync" --quiet || true # личные файлы и user.js — в профиль
+"$KIT_ROOT/bin/sync" --quiet || true # personal files and user.js go to the profile
 
 if is_macos; then
   RES="$(detect_app_resources)" || die "Zen.app not found"

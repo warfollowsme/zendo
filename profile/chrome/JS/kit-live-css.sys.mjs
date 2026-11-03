@@ -3,22 +3,22 @@
 // @description    Applies theme, mods, site styles and *.uc.css changes right away, without a restart
 // ==/UserScript==
 
-// Фоновый модуль fx-autoconfig: загружается один раз при старте браузера.
+// Background fx-autoconfig module: loaded once at browser startup.
 //
-// Firefox читает userChrome.css и userContent.css только при запуске, а новые
-// @import на лету не подхватывает. Поэтому тему, моды и стили сайтов
-// подключает этот модуль — через сервис стилей, который умеет снимать и
-// ставить листы во время работы:
-//   - импорты из kit/theme.css, kit/mods.css, kit/sites.css (и всё, что они
-//     импортируют) и личные user/userChrome.css, user/userContent.css
-//     склеиваются в один текст и ставятся как user-лист;
-//   - в userChrome.css / userContent.css эти импорты стоят с условием
-//     not -moz-pref("kit.css.live"): модуль включает настройку, и старые
-//     импорты отключаются. Без загрузчика скриптов настройки нет — и CSS
-//     работает как раньше, через импорты, но после перезапуска;
-//   - раз в секунду модуль проверяет время изменения файлов и при любой
-//     правке ставит свежую версию. Так же перечитываются CSS/*.uc.css.
-// Новые *.uc.css и правки JS по-прежнему требуют перезапуска.
+// Firefox reads userChrome.css and userContent.css only at startup and doesn't
+// pick up new @imports on the fly. So the theme, mods and site styles are
+// loaded by this module, via the stylesheet service, which can remove and
+// add sheets at runtime:
+//   - imports from kit/theme.css, kit/mods.css, kit/sites.css (and everything they
+//     import) plus the personal user/userChrome.css, user/userContent.css
+//     are concatenated into one text and registered as a user sheet;
+//   - in userChrome.css / userContent.css these imports carry the condition
+//     not -moz-pref("kit.css.live"): the module turns the pref on, and the old
+//     imports are disabled. Without the script loader the pref isn't set, and CSS
+//     works as before, via imports, but only after a restart;
+//   - once a second the module checks file modification times and on any
+//     change registers the fresh version. CSS/*.uc.css are reloaded the same way.
+// New *.uc.css files and JS changes still require a restart.
 
 import { setInterval } from "resource://gre/modules/Timer.sys.mjs";
 
@@ -30,8 +30,8 @@ const IMPORT_RE = /@import\s+(?:url\(\s*["']?([^"')]+)["']?\s*\)|["']([^"']+)["'
 const chromeDir = () => Services.dirsvc.get("UChrm", Ci.nsIFile).path;
 const dataURI = text => Services.io.newURI("data:text/css;charset=utf-8," + encodeURIComponent(text));
 
-// Текст файла со всеми @import, вставленными на место (с их медиа-условием).
-// deps — все прочитанные файлы: за ними и следим.
+// File text with every @import inlined in place (with its media condition).
+// deps: all files read, which are the ones we watch.
 async function flatten(path, deps, seen = new Set()) {
   deps.add(path);
   if (seen.has(path)) {
@@ -57,7 +57,7 @@ async function flatten(path, deps, seen = new Set()) {
   return (out + text.slice(last)).replace(/@charset\s+[^;]+;/g, "");
 }
 
-// Тело userChrome.css / userContent.css без импортов (разовые правки внизу файла).
+// Body of userChrome.css / userContent.css without imports (one-off tweaks at the end of the file).
 async function bodyOf(path, deps) {
   deps.add(path);
   try {
@@ -69,28 +69,28 @@ async function bodyOf(path, deps) {
 
 class LiveCSS {
   constructor() {
-    this.sheets = { chrome: null, content: null }; // текущие data:-листы
+    this.sheets = { chrome: null, content: null }; // current data: sheets
     this.texts = { chrome: "", content: "" };
-    this.mtimes = new Map(); // путь → время изменения
-    this.authorSheets = new Map(); // имя .uc.css → текущий data:-адрес
+    this.mtimes = new Map(); // path → modification time
+    this.authorSheets = new Map(); // .uc.css name → current data: URL
     this.busy = false;
   }
 
   async start() {
     await this.rebuild();
-    // включаем после того, как свои листы уже стоят, — без мигания
+    // turn it on after our own sheets are in place, to avoid flicker
     Services.prefs.getDefaultBranch("").setBoolPref(PREF_LIVE, true);
     await this.snapshotAuthorStyles();
     Services.obs.addObserver(win => this.fixNewWindow(win), "browser-delayed-startup-finished");
     setInterval(() => this.poll(), POLL_MS);
   }
 
-  // Собрать и поставить листы интерфейса и страниц заново.
+  // Rebuild and register the chrome and content sheets.
   async rebuild() {
     const dir = chromeDir();
     const kit = name => PathUtils.join(dir, "kit", name);
     const deps = new Set();
-    const user = name => PathUtils.join(dir, "user", name); // личный слой (bin/sync)
+    const user = name => PathUtils.join(dir, "user", name); // personal layer (bin/sync)
     const chrome =
       (await flatten(kit("theme.css"), deps)) +
       (await flatten(kit("mods.css"), deps)) +
@@ -100,8 +100,8 @@ class LiveCSS {
       (await flatten(kit("sites.css"), deps)) +
       (await bodyOf(PathUtils.join(dir, "userContent.css"), deps)) +
       (await flatten(user("userContent.css"), deps));
-    // userChrome.css действует только на окна самого браузера, а лист из
-    // сервиса стилей — на все документы, поэтому ограничиваем адресом
+    // userChrome.css applies only to the browser's own windows, while a sheet from
+    // the stylesheet service applies to all documents, so we restrict it by URL
     this.apply("chrome", `@-moz-document url-prefix("chrome:") {\n${chrome}\n}`);
     this.apply("content", content);
     for (const path of deps) {
@@ -121,7 +121,7 @@ class LiveCSS {
       return;
     }
     const uri = dataURI(text);
-    // сначала новый, потом снять старый — чтобы не было кадра без стилей
+    // add the new one first, then remove the old, so there's no frame without styles
     sss.loadAndRegisterSheet(uri, sss.USER_SHEET);
     if (this.sheets[kind]) {
       sss.unregisterSheet(this.sheets[kind], sss.USER_SHEET);
@@ -138,7 +138,7 @@ class LiveCSS {
     }
   }
 
-  // ---- CSS/*.uc.css: их ставит загрузчик в каждое окно как author-лист
+  // ---- CSS/*.uc.css: the loader adds them to every window as author sheets
 
   styles() {
     try {
@@ -149,7 +149,7 @@ class LiveCSS {
     }
   }
 
-  // у загрузчика адрес листа — строка
+  // the loader stores the sheet URL as a string
   styleURI(style) {
     return typeof style.referenceURI === "string" ? Services.io.newURI(style.referenceURI) : style.referenceURI;
   }
@@ -181,8 +181,8 @@ class LiveCSS {
     this.authorSheets.set(style.filename, uri);
   }
 
-  // Новое окно загрузчик заполняет листами, прочитанными при старте, —
-  // меняем их на свежие.
+  // The loader fills a new window with sheets read at startup;
+  // swap them for fresh ones.
   fixNewWindow(win) {
     for (const style of this.styles()) {
       const uri = this.authorSheets.get(style.filename);
@@ -197,7 +197,7 @@ class LiveCSS {
     }
   }
 
-  // ---- слежение
+  // ---- watching
 
   async poll() {
     if (this.busy) {
@@ -230,7 +230,7 @@ class LiveCSS {
     }
   }
 
-  // Применить сразу, не дожидаясь проверки (после bin/theme, bin/mod, bin/site).
+  // Apply right away without waiting for the check (after bin/theme, bin/mod, bin/site).
   async reload() {
     await this.poll();
     await this.rebuild();

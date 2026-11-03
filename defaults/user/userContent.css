@@ -1,4 +1,4 @@
 /*
- * Личные правки страниц. Для конкретного сайта лучше стиль в sites/
- * (правила внутри @-moz-document domain("example.com") { ... }).
+ * Personal page tweaks. For a specific site, a style in sites/ is better
+ * (rules inside @-moz-document domain("example.com") { ... }).
  */

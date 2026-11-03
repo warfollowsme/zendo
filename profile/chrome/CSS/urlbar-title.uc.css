@@ -3,8 +3,8 @@
 // @description    Look of the page title shown in the address bar (JS/urlbar-title.uc.js)
 // ==/UserScript== */
 
-/* Подпись лежит поверх поля адреса тем же шрифтом и отступами; поле под ней
-   прозрачное, но остаётся на месте — по клику ничего не сдвигается. */
+/* The caption sits over the address field with the same font and padding; the field
+   below is transparent but stays in place, so nothing shifts on click. */
 .urlbar-input-box {
   position: relative;
 }

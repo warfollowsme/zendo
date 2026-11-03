@@ -3,22 +3,22 @@
 // @description    Folders in the tabs panel get minimal closed/open icons (Lucide); a custom folder icon still shows inside
 // ==/UserScript==
 
-// Zen рисует папку встроенным SVG (nsZenFolder.rawIcon): задняя и передняя
-// стенки, слот .icon с иконкой, выбранной пользователем, и .dots — точки у
-// свёрнутой папки с активной вкладкой. Подменяем на минималистичные формы
-// Lucide (folder / folder-open, https://lucide.dev, ISC), сохраняя .icon и
-// .dots: Zen сам ставит на svg state="open|close" и active="true|false" и
-// кладёт иконку в "svg .icon image". Стили — CSS/folder-icons.uc.css.
+// Zen draws a folder with an inline SVG (nsZenFolder.rawIcon): back and front
+// walls, an .icon slot with the user-chosen icon, and .dots for a
+// collapsed folder with an active tab. We swap in minimalist Lucide shapes
+// (folder / folder-open, https://lucide.dev, ISC), keeping .icon and
+// .dots: Zen itself sets state="open|close" and active="true|false" on the svg and
+// puts the icon into "svg .icon image". Styles: CSS/folder-icons.uc.css.
 (function () {
   if (!window.gBrowser || window.kitFolderIcons) {
     return;
   }
   window.kitFolderIcons = true;
 
-  // Форма — как у папок Arc: закрытая — контур с язычком; открытая — та же
-  // задняя стенка и наклонённая вперёд передняя. Заднюю стенку под передней
-  // не заливаем фоном (на выделенной вкладке был бы виден прямоугольник), а
-  // вырезаем маской kit-folder-cut. viewBox с полями: папка ~17px, как значки вкладок.
+  // Shape like Arc folders: closed is an outline with a tab; open is the same
+  // back wall plus a front wall tilted forward. The back wall under the front one
+  // isn't filled with background (a rectangle would show on a selected tab) but
+  // cut out with the kit-folder-cut mask. viewBox with margins: folder ~17px, like tab icons.
   const FRONT = "M5.3 11.2H21.6a1.3 1.3 0 0 1 1.24 1.7l-1.9 5.9A1.8 1.8 0 0 1 19.2 20H3.5a1.3 1.3 0 0 1-1.24-1.7l1.9-5.9A1.8 1.8 0 0 1 5.3 11.2Z";
   const SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="-4 -4 32 32" fill="none" class="kit-folder-svg">
     <mask id="kit-folder-cut" maskUnits="userSpaceOnUse" x="-4" y="-4" width="32" height="32">
@@ -31,10 +31,10 @@
     <rect class="kit-folder-icon-fill" x="7.5" y="9" width="9" height="9" mask="url(#kit-folder-mask)"/>
     <g class="dots"><circle cx="8" cy="13.5" r="1.1"/><circle cx="12" cy="13.5" r="1.1"/><circle cx="16" cy="13.5" r="1.1"/></g>
   </svg>`;
-  // Иконка пользователя — маска формы, которую закрашивает прямоугольник цветом
-  // текста (context-fill до картинки внутри SVG не доходит — она была чёрной).
-  // Zen гасит .icon (opacity) у свёрнутой папки с активной вкладкой — гаснет и маска.
-  // У каждой папки свои маски: одинаковый id дал бы всем иконку первой папки.
+  // The user's icon is a mask over a rectangle painted in the text
+  // color (context-fill doesn't reach an image inside an SVG, so it came out black).
+  // Zen fades .icon (opacity) on a collapsed folder with an active tab, and the mask fades too.
+  // Each folder gets its own masks: a shared id would give all of them the first folder's icon.
   let maskCount = 0;
   const uniqueMask = svg => {
     const n = ++maskCount;
@@ -55,7 +55,7 @@
       return;
     }
     if (old.classList.contains("kit-folder-svg")) {
-      uniqueMask(old); // копия rawIcon у новой папки
+      uniqueMask(old); // rawIcon copy in a new folder
       return;
     }
     const svg = fresh();
@@ -66,7 +66,7 @@
     uniqueMask(svg);
     old.replaceWith(svg);
     try {
-      window.gZenFolders?.updateFolderIcon(folder); // вернуть state/active
+      window.gZenFolders?.updateFolderIcon(folder); // restore state/active
     } catch (e) {
       console.error("folder-icons:", e);
     }
@@ -74,14 +74,14 @@
 
   customElements.whenDefined("zen-folder").then(() => {
     const Folder = customElements.get("zen-folder");
-    // новые папки берут иконку отсюда; после вставки даём ей свою маску
+    // new folders take their icon from here; after insertion give it its own mask
     Folder.rawIcon = fresh();
     const connected = Folder.prototype.connectedCallback;
     Folder.prototype.connectedCallback = function () {
       connected.call(this);
       swap(this);
     };
-    // уже созданные (восстановленные при запуске) — подменяем
+    // already created ones (restored at startup): replace
     for (const folder of document.querySelectorAll("zen-folder")) {
       swap(folder);
     }

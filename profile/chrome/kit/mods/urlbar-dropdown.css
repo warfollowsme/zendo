@@ -3,14 +3,14 @@
  * @description The address bar keeps its size and look when focused; suggestions open below it as a separate rounded dropdown in the same style.
  */
 
-/* Обычно при раскрытии строка адреса (Firefox «breakout») становится шире,
-   выше и рисует один общий фон на себя и список. Здесь строка остаётся как
-   есть, а список (.urlbarView) — отдельный остров под ней.
-   Работает при zen.urlbar.behavior = "normal" (см. user.js). */
+/* Normally when expanded, the address bar (Firefox "breakout") gets wider,
+   taller and draws one shared background for itself and the list. Here the bar
+   stays as is, and the list (.urlbarView) is a separate island below it.
+   Works with zen.urlbar.behavior = "normal" (see user.js). */
 
-/* строка: тот же размер и место, что у закрытой. Zen ставит раскрытую строку
-   с top: -2px (macOS), закрытая же стоит по центру своего контейнера.
-   Точный сдвиг меряет раскладка (--kit-urlbar-shift), без неё — по формуле. */
+/* bar: same size and position as when closed. Zen places the expanded bar
+   at top: -2px (macOS), while the closed one is centered in its container.
+   The layout measures the exact shift (--kit-urlbar-shift); without it, a formula. */
 #urlbar[breakout][breakout-extend]:not([zen-floating-urlbar="true"]) {
   width: var(--urlbar-width) !important;
   translate: 0 var(--kit-urlbar-shift, calc((var(--urlbar-container-height) - var(--urlbar-height)) / 2 + 2px));
@@ -21,9 +21,9 @@
   outline: none !important;
 }
 
-/* фон — только под строкой ввода и такой же, как у закрытой строки */
+/* background only under the input row, same as the closed bar's */
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]) > .urlbar-background {
-  /* у закрытой строки фон отступает на 1px внутрь */
+  /* the closed bar's background is inset by 1px */
   inset: 1px 1px auto 1px !important;
   height: calc(var(--urlbar-height) - 2px) !important;
   border: none !important;
@@ -34,8 +34,8 @@
   border-radius: calc(var(--border-radius-medium) * var(--zen-squircle-value, 1)) !important;
 }
 
-/* список подсказок — отдельный остров под строкой: тот же оттенок и
-   скругление, но на непрозрачной подложке, чтобы читался поверх сайта */
+/* suggestion list — a separate island under the bar: same tint and
+   radius, but on an opaque backing so it reads over the site */
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]) > .urlbarView {
   width: auto !important;
   margin: 6px 1px 0 !important;
@@ -49,13 +49,13 @@
   overflow: hidden;
 }
 
-/* в отдельном острове свои отступы Firefox/Zen сверху и снизу не нужны */
+/* a separate island doesn't need Firefox/Zen's own top and bottom padding */
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]) > .urlbarView > .urlbarView-results {
-  /* Firefox задаёт блоку свою ширину и отрицательные поля — укладываем в остров */
+  /* Firefox gives the block its own width and negative margins — fit it into the island */
   width: auto !important;
   margin: 0 !important;
   padding: 0 4px !important;
-  /* разделитель Firefox между строкой и списком — в острове он тёмная полоска сверху */
+  /* Firefox's divider between bar and list — in the island it's a dark strip at the top */
   border-top: none !important;
 }
 
@@ -63,20 +63,20 @@
   width: auto !important;
 }
 
-/* пункты — со своим скруглением и отступом от краёв, как в выпадающем списке */
+/* rows — with their own radius and edge inset, like in a dropdown */
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]) .urlbarView-row,
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]) .urlbarView-row-inner {
   border-radius: calc(var(--border-radius-medium) * var(--zen-squircle-value, 1) - 4px) !important;
 }
 
-/* при правке ничего не двигается. В закрытой строке Zen ставит иконку-ссылку
-   первой (order: -1), а значок сайта — последним (order: 999). В раскрытой он
-   этот порядок сбрасывает, иконку-ссылку прячет, значок сайта (лупа) уезжает
-   влево и опускается, внутренний отступ растёт — текст и иконки прыгали.
-   Держим раскладку закрытой строки. */
+/* nothing moves while editing. In the closed bar Zen puts the link icon
+   first (order: -1) and the site icon last (order: 999). When expanded it
+   resets this order, hides the link icon, the site icon (magnifier) moves
+   left and down, and the inner padding grows — text and icons jumped.
+   Keep the closed bar's layout. */
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]) > .urlbar-input-container {
   padding: 2px 5px !important;
-  column-gap: 2px !important; /* как у закрытой: в раскрытой Zen ставит 0 */
+  column-gap: 2px !important; /* as when closed: Zen sets 0 when expanded */
 }
 
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]) #zen-copy-url-button {
@@ -89,8 +89,8 @@
   margin-inline: 0 !important;
 }
 
-/* пустой список не показываем: при запуске Zen ставит курсор в адресную строку
-   пустой вкладки, список «открыт», но пунктов нет — оставалась пустая полоска */
+/* don't show an empty list: on startup Zen focuses the address bar of an
+   empty tab, the list is "open" but has no rows — an empty strip was left */
 #urlbar[breakout-extend]:not([zen-floating-urlbar="true"]):is([noresults], :not(:has(.urlbarView-row:not([hidden])))) > .urlbarView {
   display: none !important;
 }

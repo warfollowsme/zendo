@@ -1,17 +1,17 @@
-# Исходники Zen — отдельный клон, обновляется bin/zen-source
+# Zen sources — a separate clone, updated by bin/zen-source
 /zen-source/
 
-# Локальное состояние: путь к профилю, бэкапы
+# Local state: profile path, backups
 /.kit/
 
-# macOS и exFAT
+# macOS and exFAT
 .DS_Store
 ._*
 
-# Временные файлы скриптов
+# Temporary script files
 *.tmp.*
 
-# Выбор темы, модов и сайтов — в личном слое (~/.config/zendo/current/)
+# Theme, mod and site selection — in the personal layer (~/.config/zendo/current/)
 /profile/chrome/kit/theme.css
 /profile/chrome/kit/mods.css
 /profile/chrome/kit/sites.css

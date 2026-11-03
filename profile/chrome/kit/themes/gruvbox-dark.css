@@ -4,10 +4,10 @@
  */
 :root {
   --theme-scheme: dark;
-  --theme-bg: #282828;       /* фон окна и боковой панели */
-  --theme-surface: #3c3836;  /* адресная строка, панели, меню */
-  --theme-fg: #ebdbb2;       /* основной текст и иконки */
-  --theme-muted: #928374;    /* второстепенный текст */
-  --theme-accent: #fe8019;   /* акцент: выбранная вкладка, кнопки */
-  --theme-border: #504945;   /* рамки и разделители */
+  --theme-bg: #282828;       /* window and sidebar background */
+  --theme-surface: #3c3836;  /* address bar, panels, menus */
+  --theme-fg: #ebdbb2;       /* main text and icons */
+  --theme-muted: #928374;    /* secondary text */
+  --theme-accent: #fe8019;   /* accent: selected tab, buttons */
+  --theme-border: #504945;   /* borders and separators */
 }

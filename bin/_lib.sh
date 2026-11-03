@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# Общие функции для скриптов в bin/. Подключается через `source`.
-# Пишем под bash 3.2 — это версия, которая стоит в macOS по умолчанию:
-# без ассоциативных массивов, mapfile и ${var,,}.
+# Shared functions for the scripts in bin/. Loaded with `source`.
+# Written for bash 3.2, the version macOS ships by default:
+# no associative arrays, mapfile or ${var,,}.
 
 set -euo pipefail
 
@@ -9,17 +9,17 @@ KIT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 KIT_PROFILE_SRC="$KIT_ROOT/profile"
 KIT_CHROME_SRC="$KIT_PROFILE_SRC/chrome"
 KIT_KIT_DIR="$KIT_CHROME_SRC/kit"
-KIT_STATE="$KIT_ROOT/.kit"          # локальное состояние, не в git
+KIT_STATE="$KIT_ROOT/.kit"          # local state, not in git
 KIT_ZEN_SOURCE="$KIT_ROOT/zen-source"
 
-# Личный слой: свои темы, моды, стили сайтов, скрипты, настройки и выбор
-# темы и модов. База (этот репозиторий) обновляется bin/update, личный слой
-# обновления не трогают. Путь запоминается при bin/install.
+# Personal layer: your own themes, mods, site styles, scripts, prefs and the
+# chosen theme and mods. The base (this repo) is updated by bin/update; updates
+# never touch the personal layer. Its path is saved by bin/install.
 if [ -z "${ZENDO_USER:-}" ] && [ -f "$KIT_STATE/user" ]; then
   ZENDO_USER="$(cat "$KIT_STATE/user")"
 fi
 ZENDO_USER="${ZENDO_USER:-$HOME/.config/zendo}"
-KIT_SKEL="$KIT_ROOT/defaults/user"   # заготовка личного слоя
+KIT_SKEL="$KIT_ROOT/defaults/user"   # personal layer skeleton
 
 if [ -t 1 ]; then
   C_RED=$'\033[31m'; C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'
@@ -35,7 +35,7 @@ die()  { printf '%s✗%s %s\n' "$C_RED" "$C_RESET" "$*" >&2; exit 1; }
 
 is_macos() { [ "$(uname -s)" = "Darwin" ]; }
 
-# Папки, где Zen держит профили (profiles.ini, installs.ini).
+# Folders where Zen keeps its profiles (profiles.ini, installs.ini).
 zen_data_dirs() {
   if is_macos; then
     printf '%s\n' "$HOME/Library/Application Support/zen"
@@ -46,7 +46,7 @@ zen_data_dirs() {
   fi
 }
 
-# Значение ключа из первой подходящей секции ini-файла.
+# Value of a key from the first matching section of an ini file.
 # ini_get FILE SECTION_REGEX KEY
 ini_get() {
   awk -v sec="$2" -v key="$3" '
@@ -55,8 +55,8 @@ ini_get() {
   ' "$1"
 }
 
-# Профиль, к которому подключён проект.
-# Порядок: ZEN_PROFILE → сохранённый при установке → тот, что открывает Zen.
+# The profile the project is connected to.
+# Order: ZEN_PROFILE → saved at install → the one Zen opens.
 detect_profile() {
   if [ -n "${ZEN_PROFILE:-}" ]; then
     printf '%s\n' "$ZEN_PROFILE"; return 0
@@ -67,9 +67,9 @@ detect_profile() {
   active_profile
 }
 
-# Профиль, который Zen открывает при запуске: installs.ini → profiles.ini.
-# Может отличаться от сохранённого, если Zen переключился на другой профиль
-# (например, после переустановки появился «Default (release)»).
+# The profile Zen opens on startup: installs.ini → profiles.ini.
+# May differ from the saved one if Zen switched to another profile
+# (e.g. "Default (release)" appeared after a reinstall).
 active_profile() {
   if [ -n "${ZEN_PROFILE:-}" ]; then
     printf '%s\n' "$ZEN_PROFILE"; return 0
@@ -118,7 +118,7 @@ require_profile() {
   printf '%s\n' "$p"
 }
 
-# Папка с программой Zen, куда кладутся файлы fx-autoconfig.
+# Zen's application folder, where the fx-autoconfig files go.
 detect_app_resources() {
   if [ -n "${ZEN_APP:-}" ]; then
     if [ -d "$ZEN_APP/Contents/Resources" ]; then
@@ -151,7 +151,7 @@ detect_app_resources() {
   return 1
 }
 
-# Версия установленного Zen (если удаётся узнать).
+# Version of the installed Zen (if it can be found).
 installed_zen_version() {
   local res
   res="$(detect_app_resources 2>/dev/null)" || return 1
@@ -175,7 +175,7 @@ zen_running() {
   fi
 }
 
-# Папка startupCache профиля (её чистят после изменений JS).
+# The profile's startupCache folder (cleared after JS changes).
 startup_cache_dirs() {
   local profile name
   profile="$1"; name="$(basename "$profile")"
@@ -200,12 +200,12 @@ EOF
   [ "$cleared" = 1 ] || info "${C_DIM}No startup cache found — nothing to clear.${C_RESET}"
 }
 
-# Читаемое имя из заголовка css-файла (@name ...).
+# Human-readable name from a css file header (@name ...).
 css_meta() {
   sed -n "s/^ *\* *@$2 *\(.*\)$/\1/p" "$1" | head -n 1
 }
 
-# Имена css-файлов вида (themes, mods, sites) из базы и личного слоя.
+# Names of css files of a kind (themes, mods, sites) from the base and personal layer.
 kit_names() {
   local f
   for f in "$KIT_KIT_DIR/$1"/*.css "$ZENDO_USER/$1"/*.css; do
@@ -215,7 +215,7 @@ kit_names() {
   done | sort -u
 }
 
-# Путь к css-файлу вида: личный заменяет одноимённый базовый.
+# Path to a css file of a kind: a personal file replaces a base one of the same name.
 # kit_file KIND NAME
 kit_file() {
   if [ -f "$ZENDO_USER/$1/$2.css" ]; then
@@ -227,10 +227,10 @@ kit_file() {
   fi
 }
 
-# Пишет ли в профиль этот проект: ссылка на базу или личный слой, папка из
-# одних таких ссылок или user.js, собранный bin/sync. Остальное — чужое,
-# bin/install убирает его в бэкап.
-SYNC_MARK="// Сгенерировано bin/sync"
+# Whether this project wrote it to the profile: a link to the base or personal layer,
+# a folder of only such links, or a user.js built by bin/sync. Anything else is foreign;
+# bin/install moves it to a backup.
+SYNC_MARK="// Generated by bin/sync"
 is_ours() {
   local p="$1" l
   if [ -L "$p" ]; then

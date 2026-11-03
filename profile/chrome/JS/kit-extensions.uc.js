@@ -23,13 +23,13 @@
     return node;
   };
 
-  // Используем штатный WebExtension browser: процессы, principal, popup API,
-  // window.close() и activeTab работают так же, как у обычной кнопки расширения.
-  // Только контейнер и размеры заменены: вместо всплывающего меню — наш остров.
+  // Use the built-in WebExtension browser: processes, principal, popup API,
+  // window.close() and activeTab work the same as with a regular extension button.
+  // Only the container and sizing are replaced: our island instead of a popup menu.
   class SidePopup extends BasePopup {
     get panel() { return this.viewNode; }
     get DESTROY_EVENT() { return "kit-extension-destroy"; }
-    resizeBrowser() {} // Размер задаёт панель, а не содержимое popup.
+    resizeBrowser() {} // The panel sets the size, not the popup content.
     setBackground(background) {
       super.setBackground(background);
       if (this.viewNode) this.viewNode.style.backgroundColor = this.background;
@@ -65,9 +65,9 @@
     const token = generation;
     status.textContent = "";
     try {
-      // triggerClickOrPopup сам выдаёт activeTab только при явном клике,
-      // учитывает запрет действия на текущей вкладке и вызывает onClicked,
-      // если у расширения нет popup.
+      // triggerClickOrPopup itself grants activeTab only on an explicit click,
+      // respects action restrictions on the current tab and calls onClicked
+      // if the extension has no popup.
       const url = action
         ? action.action.triggerClickOrPopup(gBrowser.selectedTab, { button: 0, modifiers: [] })
         : optionsURL;
@@ -174,7 +174,7 @@
       toggle.disabled = busy || !(addon.permissions & (disabled
         ? AddonManager.PERM_CAN_ENABLE : AddonManager.PERM_CAN_DISABLE));
       const remove = iconButton(`remove-${id}`, "Remove extension", "trash", () => {
-        // Штатный диалог удаления, включая проверку прав и подтверждение.
+        // Built-in uninstall dialog, including the permission check and confirmation.
         void runAddonCommand(addon, () => BrowserAddonUI.removeAddon(addon.id));
       });
       remove.disabled = busy || !(addon.permissions & AddonManager.PERM_CAN_UNINSTALL);
@@ -186,8 +186,8 @@
     }
   }
 
-  // Поиск и «Get more» — шапкой «Библиотеки» Zen (как в панели Boosts:
-  // те же классы zen-library-search-*, справа вместо Filters — магазин).
+  // Search and "Get more" in the Zen Library header style (as in the Boosts panel:
+  // the same zen-library-search-* classes, with the store on the right instead of Filters).
   function searchHeader() {
     const top = el("div", "search");
     top.className = "zen-library-search-top";
@@ -219,7 +219,7 @@
     return top;
   }
 
-  // Синхронизируем pin и при изменениях из штатного меню или другого окна.
+  // Keep pin in sync with changes from the built-in menu or another window too.
   const widgetListener = {
     onWidgetAdded() { refresh().catch(report); },
     onWidgetRemoved() { refresh().catch(report); },

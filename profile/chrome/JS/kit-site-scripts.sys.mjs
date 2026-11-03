@@ -3,23 +3,23 @@
 // @description    Runs sites/<name>.js on matching pages while the site style <name> is enabled
 // ==/UserScript==
 
-// Фоновый модуль fx-autoconfig: загружается один раз при старте браузера.
+// Background fx-autoconfig module: loaded once at browser startup.
 //
-// Стиль сайта иногда нуждается в кнопке или переключателе — CSS этого не
-// умеет. Тогда рядом со стилем кладётся sites/<имя>.js: он включается и
-// выключается вместе со стилем (bin/site on|off <имя>) и запускается на
-// страницах доменов из заголовка:
+// A site style sometimes needs a button or a toggle, which CSS can't
+// do. Then a sites/<name>.js goes next to the style: it is enabled and
+// disabled together with the style (bin/site on|off <name>) and runs on
+// pages of the domains from its header:
 //   // ==UserScript==
 //   // @name    …
-//   // @domain  example.com        (и поддомены; строк @domain может быть несколько)
+//   // @domain  example.com        (and subdomains; there can be several @domain lines)
 //   // ==/UserScript==
-// Скрипт выполняется после загрузки разметки страницы (DOMContentLoaded),
-// только в главном окне вкладки, с правами страницы — через песочницу с
-// Xray, как run_page_js у ИИ-помощника: страница не видит его переменных.
+// The script runs after the page markup has loaded (DOMContentLoaded),
+// only in the tab's top-level window, with page privileges, through an Xray
+// sandbox like the AI assistant's run_page_js: the page can't see its variables.
 //
-// Список включённых скриптов модуль раз в секунду сверяет с файлами и
-// передаёт в процессы страниц через sharedData. Правка скрипта действует
-// на страницах, открытых после неё (или после обновления вкладки).
+// Once a second the module checks the list of enabled scripts against the files
+// and passes it to content processes via sharedData. A script change takes effect
+// on pages opened after it (or after the tab is reloaded).
 
 import { setInterval } from "resource://gre/modules/Timer.sys.mjs";
 
@@ -29,8 +29,8 @@ const IMPORT_RE = /@import\s+url\("sites\/(.+)\.css"\);/g;
 
 const kitDir = () => PathUtils.join(Services.dirsvc.get("UChrm", Ci.nsIFile).path, "kit");
 
-// Скрипт для процесса каждой вкладки: ждёт загрузки страницы и запускает
-// подходящие скрипты сайтов.
+// Script for each tab's process: waits for the page to load and runs
+// the matching site scripts.
 function frameScript(key) {
   const fits = (host, domain) => host === domain || host.endsWith("." + domain);
   addEventListener(
@@ -62,7 +62,7 @@ function frameScript(key) {
 
 class SiteScripts {
   constructor() {
-    this.stamp = ""; // что прочитано в прошлый раз: имена и время изменения
+    this.stamp = ""; // what was read last time: names and modification times
     this.busy = false;
   }
 
@@ -82,7 +82,7 @@ class SiteScripts {
     }
   }
 
-  // Включённые стили сайтов — из kit/sites.css, который пишет bin/site.
+  // Enabled site styles, from kit/sites.css, which bin/site writes.
   async enabled() {
     try {
       const text = await IOUtils.readUTF8(PathUtils.join(kitDir(), "sites.css"));
@@ -112,7 +112,7 @@ class SiteScripts {
         try {
           source = await IOUtils.readUTF8(path);
         } catch (e) {
-          continue; // у стиля нет скрипта — обычное дело
+          continue; // the style has no script, which is normal
         }
         const header = source.match(/\/\/ ==UserScript==([\s\S]*?)\/\/ ==\/UserScript==/)?.[1] || "";
         const domains = [...header.matchAll(/@domain\s+(\S+)/g)].map(m => m[1].toLowerCase());

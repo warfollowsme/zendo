@@ -37,8 +37,8 @@ run() {
   fi
 }
 
-# Ставим в тот профиль, который Zen реально открывает, а не в сохранённый
-# при прошлой установке: Zen мог с тех пор переключиться на другой.
+# Install into the profile Zen actually opens, not the one saved
+# at the last install: Zen may have switched to another since.
 PROFILE="$(require_active_profile)"
 info "Zen profile: ${C_BOLD}$PROFILE${C_RESET}"
 if [ -f "$KIT_STATE/profile" ] && [ "$(cat "$KIT_STATE/profile")" != "$PROFILE" ]; then
@@ -59,8 +59,8 @@ while [ -e "$BACKUP" ] || [ -e "$BACKUP.restored" ]; do
 done
 backed_up=0
 
-# Всё, что лежит в профиле на наших местах и создано не этим проектом
-# (старые userChrome.css, user.js, ссылки на другую папку проекта), — в бэкап.
+# Anything in the profile at our paths not created by this project
+# (old userChrome.css, user.js, links to another project folder) goes to a backup.
 backup() {
   local dest="$1" rel
   [ -e "$dest" ] || [ -L "$dest" ] || return 0
@@ -86,10 +86,10 @@ if [ "$DRY" = 0 ]; then
     info "Backup: ${BACKUP#"$KIT_ROOT"/}"
   fi
   "$KIT_ROOT/bin/sync"
-  # Личный слой — свой git-репозиторий: любую личную правку можно откатить.
+  # The personal layer is its own git repo, so any personal change can be reverted.
   if [ ! -d "$ZENDO_USER/.git" ] && command -v git >/dev/null 2>&1; then
     if git -C "$ZENDO_USER" init -q && git -C "$ZENDO_USER" add -A &&
-       git -C "$ZENDO_USER" commit -q -m "zendo: личные настройки" >/dev/null 2>&1; then
+       git -C "$ZENDO_USER" commit -q -m "zendo: personal settings" >/dev/null 2>&1; then
       ok "Personal layer is a git repository: $ZENDO_USER"
     fi
   fi

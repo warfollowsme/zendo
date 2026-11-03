@@ -1,256 +1,272 @@
 # Zendo
 
-[Zen](https://zen-browser.app), который настраивается через ИИ. Идея как у
-[Omarchy](https://omarchy.org), только для браузера: продуманная база, всё
-лежит текстовыми файлами, темы и моды переключаются одной командой, а новое
-ты просишь у ИИ-помощника прямо в боковой панели браузера — он пишет CSS и
-скрипты сам.
+[Zen](https://zen-browser.app) you customize with AI. The idea is like
+[Omarchy](https://omarchy.org), but for a browser: a well-thought-out base,
+everything lives as text files, themes and mods switch with a single command,
+and anything new you just ask the AI assistant for, right in the browser's
+side panel — it writes the CSS and scripts itself.
 
-- раскладка окна как в IDE: тулбары по краям, боковые панели-острова,
-  пространства Zen цифрами сверху;
-- ИИ-помощник в панели: Claude Code, ChatGPT по подписке или API-ключ;
-- темы, моды интерфейса и стили сайтов — CSS применяется через секунду
-  после сохранения, без перезапуска;
-- ссылки со страницы открываются сплитом справа.
+- an IDE-like window layout: toolbars on the edges, island-style side panels,
+  Zen workspaces as numbers at the top;
+- an AI assistant in a panel: Claude Code, a ChatGPT subscription or an API key;
+- themes, UI mods and site styles — CSS applies a second after saving, no
+  restart;
+- links from a page open in a split on the right.
 
-Zendo — неофициальный проект, к команде Zen отношения не имеет. Работает на
+Zendo is an unofficial project, not affiliated with the Zen team. Runs on
 macOS.
 
-## Установка
+## Installation
 
-1. Поставь [Zen](https://zen-browser.app) (или `brew install --cask zen`),
-   запусти его один раз и закрой (Cmd+Q).
-2. Выполни в терминале:
+1. Install [Zen](https://zen-browser.app) (or `brew install --cask zen`),
+   launch it once and quit (Cmd+Q).
+2. Run in a terminal:
    ```sh
    curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh | bash
    ```
-   Скрипт скачает Zendo в `~/.local/share/zendo`, подключит его к профилю
-   Zen и соберёт **Zendo.app** в `/Applications`.
-3. Запускай Zen через Zendo.app (перетащи его в Dock вместо Zen). Обновление
-   Zen стирает загрузчик скриптов из программы — Zendo.app перед каждым
-   запуском возвращает его сам.
+   The script downloads Zendo to `~/.local/share/zendo`, connects it to your
+   Zen profile and builds **Zendo.app** in `/Applications`.
+3. Launch Zen via Zendo.app (drag it to the Dock instead of Zen). A Zen update
+   wipes the script loader from the program — Zendo.app restores it before
+   every launch.
 
-Всё, что уже было в профиле на местах Zendo (`userChrome.css`, `user.js`),
-уезжает в бэкап. Удалить Zendo и вернуть как было:
+Anything that was already in the profile where Zendo puts its files
+(`userChrome.css`, `user.js`) is moved to a backup. To remove Zendo and restore
+everything as it was:
 
 ```sh
 ~/.local/share/zendo/bin/uninstall --autoconfig
 ```
 
-Для ИИ-помощника нужен [Claude Code](https://claude.com/claude-code), аккаунт
-ChatGPT или API-ключ Anthropic / OpenAI — что подключить, панель спросит сама.
+The AI assistant needs [Claude Code](https://claude.com/claude-code), a
+ChatGPT account or an Anthropic / OpenAI API key — the panel will ask which one
+to connect.
 
-### Вручную
+### Manually
 
 ```sh
 git clone https://github.com/warfollowsme/zendo ~/.local/share/zendo
 cd ~/.local/share/zendo
-bin/install --dry-run      # показать, что изменится
-bin/install --autoconfig   # подключить (Zen должен быть закрыт)
-bin/app                    # собрать Zendo.app
+bin/install --dry-run      # show what will change
+bin/install --autoconfig   # connect (Zen must be closed)
+bin/app                    # build Zendo.app
 ```
 
-Без `--autoconfig` работают только темы и моды (CSS), без раскладки,
-помощника и других скриптов.
+Without `--autoconfig` only themes and mods (CSS) work — no layout,
+assistant or other scripts.
 
-Скрипты ([fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig))
-выполняются с полными правами браузера. Ставь только те, что написал ты
-или помощник, и читай их перед включением.
+Scripts ([fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig))
+run with full browser privileges. Only install ones written by you or the
+assistant, and read them before enabling.
 
-## База и личный слой
+## Base and personal layer
 
-- **База** — `~/.local/share/zendo`, этот репозиторий. Обновляется командой
-  `bin/update`. Руками её не правь — обновление с такими правками не встанет.
-- **Личный слой** — `~/.config/zendo`, твой git-репозиторий: свои темы, моды,
-  стили сайтов, скрипты, `user.js`, мелкие правки CSS, выбранная тема и
-  включённые моды. Обновления его не трогают. Файл с тем же именем, что в
-  базе, заменяет базовый. Что где лежит — в `~/.config/zendo/README.md`.
-- **Личные указания для ИИ** — `~/.config/zendo/AGENTS.md`: на каком языке
-  отвечать, что учитывать.
+- **Base** — `~/.local/share/zendo`, this repository. Updated with
+  `bin/update`. Don't edit it by hand — the update won't apply over such edits.
+- **Personal layer** — `~/.config/zendo`, your own git repository: your themes,
+  mods, site styles, scripts, `user.js`, small CSS tweaks, the chosen theme and
+  enabled mods. Updates don't touch it. A file with the same name as one in the
+  base replaces the base file. What goes where — see
+  `~/.config/zendo/README.md`.
+- **Personal instructions for AI** — `~/.config/zendo/AGENTS.md`: which
+  language to answer in, what to keep in mind.
 
-Помощник по умолчанию пишет твои правки в личный слой и коммитит каждую
-отдельно — неудачное всегда можно откатить через `git revert`.
+By default the assistant writes your changes to the personal layer and commits
+each one separately — anything that didn't work out can always be reverted
+with `git revert`.
 
-## Команды
+## Commands
 
-Из папки базы (`~/.local/share/zendo`):
+From the base folder (`~/.local/share/zendo`):
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `bin/theme` | список тем; `bin/theme <имя>` — включить, `bin/theme zen-default` — вернуть цвета Zen |
-| `bin/mod` | моды интерфейса; `bin/mod on <имя>` / `bin/mod off <имя>` |
-| `bin/site` | стили для сайтов (и их скрипты `<имя>.js`, если есть); `bin/site on <имя>` / `bin/site off <имя>` |
-| `bin/update` | обновить базу из GitHub |
-| `bin/sync` | собрать профиль заново — после того как добавил или удалил файл в личном слое |
-| `bin/restart` | перезапустить Zen; `--clear-cache` — после правок JS |
-| `bin/status` | что подключено, текущая тема и моды, версии Zen |
-| `bin/check` | проверить базу и личный слой без запуска Zen: импорты, заголовки, синтаксис JS |
-| `bin/zen-source` | скачать или обновить исходники Zen в `zen-source/` (нужны ИИ для поиска селекторов) |
-| `bin/install` / `bin/uninstall` | подключить / отключить Zendo от профиля |
-| `bin/app` | собрать Zendo.app — запуск Zen с проверкой загрузчика скриптов и профиля (`bin/launch`) |
+| `bin/theme` | list themes; `bin/theme <name>` — enable, `bin/theme zen-default` — restore Zen's colors |
+| `bin/mod` | UI mods; `bin/mod on <name>` / `bin/mod off <name>` |
+| `bin/site` | site styles (and their `<name>.js` scripts, if any); `bin/site on <name>` / `bin/site off <name>` |
+| `bin/update` | update the base from GitHub |
+| `bin/sync` | rebuild the profile — after adding or removing a file in the personal layer |
+| `bin/restart` | restart Zen; `--clear-cache` — after JS edits |
+| `bin/status` | what's connected, current theme and mods, Zen versions |
+| `bin/check` | check the base and personal layer without running Zen: imports, headers, JS syntax |
+| `bin/zen-source` | download or update the Zen sources in `zen-source/` (the AI uses them to find selectors) |
+| `bin/install` / `bin/uninstall` | connect / disconnect Zendo from the profile |
+| `bin/app` | build Zendo.app — launches Zen after checking the script loader and the profile (`bin/launch`) |
 
-То же самое — темы, моды, сайты — переключается в панели **Settings**.
+The same things — themes, mods, sites — can be toggled in the **Settings**
+panel.
 
-Что есть сейчас:
-- **Темы:** Tokyo Night, Catppuccin Mocha, Gruvbox Dark, Nord, Rosé Pine Dawn.
-- **Моды:** крестик на вкладке только при наведении, моноширинный шрифт в
-  адресной строке, полоска акцента у активной вкладки, без боковой панели Firefox,
-  подсказки адресной строки отдельным островом, тонкая адресная строка.
-- **Сайты:** YouTube без Shorts.
-- **Скрипты:** ссылки, которые сайт открывает в новой вкладке, — сплитом справа
-  от страницы (превью — только пунктом «Open Link in Glance»; выключить —
-  `kit.links.split = false`), раскладка с тулбарами и боковыми панелями, ИИ-помощник,
-  название сайта в адресной строке, минималистичные иконки папок,
-  «Скопировать как Markdown» в меню вкладки (всем нужен `--autoconfig`).
+What's included now:
+- **Themes:** Tokyo Night, Catppuccin Mocha, Gruvbox Dark, Nord, Rosé Pine Dawn.
+- **Mods:** tab close button only on hover, monospace font in the address bar,
+  accent stripe on the active tab, no Firefox sidebar, address bar suggestions
+  as a separate island, slim address bar.
+- **Sites:** YouTube without Shorts.
+- **Scripts:** links that a site opens in a new tab open in a split to the
+  right of the page (preview only via the "Open Link in Glance" item; turn off
+  with `kit.links.split = false`), the layout with toolbars and side panels,
+  the AI assistant, site name in the address bar, minimalist folder icons,
+  "Copy as Markdown" in the tab menu (all need `--autoconfig`).
 
-## Работа с ИИ
+## Working with AI
 
-Проще всего — из панели AI в браузере. Можно и из терминала:
+The easiest way is the AI panel in the browser. You can also use a terminal:
 
 ```sh
 cd ~/.local/share/zendo
-claude      # или codex
+claude      # or codex
 ```
 
-И просто проси: «сделай тему как у Kanagawa», «спрячь кнопку новой вкладки»,
-«добавь горячую клавишу, которая закрывает все вкладки справа», «перенеси мои
-расширения из Chrome». Агент знает структуру проекта, ищет селекторы в
-исходниках Zen (`bin/zen-source`) и коммитит каждую правку отдельно — неудачное
-всегда можно откатить через `git revert`.
+And just ask: "make a theme like Kanagawa", "hide the new tab button",
+"add a hotkey that closes all tabs to the right", "move my extensions over from
+Chrome". The agent knows the project structure, looks up selectors in the Zen
+sources (`bin/zen-source`) and commits each change separately — anything that
+didn't work out can always be reverted with `git revert`.
 
-## Раскладка окна
+## Window layout
 
-Сверху — общая полоса окна: кнопки окна, пространства Zen (как рабочие
-столы в Omarchy: иконка пространства или номер, активное подсвечено, клик
-переключает; в конце — Create Space); по центру окна — группа страницы
-(назад/вперёд/обновить, адресная строка, зум); справа — полный экран, кнопка **Split** — меню Add Right / Left /
-Top / Bottom Split делит вкладку в фокусе пополам, новая панель — с выбранной стороны
-(разделённый экран Zen, до 4 панелей; границы тянутся мышью, в мини-меню
-панели — крестик, чтобы её закрыть). Пока адресная строка не в фокусе, в ней
-название сайта, а не ссылка. В центре —
-только сайт. По краям — тулбары со значками инструментов и боковые
-панели-острова (как окна инструментов в IDE):
+At the top is the shared window strip: window buttons, Zen workspaces (like
+desktops in Omarchy: the workspace icon or number, the active one highlighted,
+click to switch; Create Space at the end); in the middle of the window, the
+page group (back/forward/reload, address bar, zoom); on the right, full screen
+and the **Split** button — its Add Right / Left / Top / Bottom Split menu
+splits the focused tab in half, with the new pane on the chosen side (Zen's
+split view, up to 4 panes; borders can be dragged with the mouse, the pane's
+mini-menu has an × to close it). While the address bar isn't focused, it shows
+the site name rather than the URL. In the center —
+only the site. On the edges — toolbars with tool icons and island-style side
+panels (like tool windows in an IDE):
 
-| Инструмент | Что в панели |
+| Tool | What's in the panel |
 |---|---|
-| Tabs | вкладки Zen; в конце папок — Create Folder |
-| History, Downloads, Media, Boosts | разделы «Библиотеки» Zen (её кнопка убрана) |
-| Bookmarks | закладки Firefox |
-| Settings | тема, моды, стили сайтов, сброс раскладки |
-| AI | помощник (ниже) |
-| Develop | консоль браузера, Browser Toolbox, `bin/check`, скрипты, ошибки |
+| Tabs | Zen tabs; Create Folder at the end of the folders |
+| History, Downloads, Media, Boosts | sections of Zen's Library (its button is removed) |
+| Bookmarks | Firefox bookmarks |
+| Settings | theme, mods, site styles, layout reset |
+| AI | the assistant (below) |
+| Develop | browser console, Browser Toolbox, `bin/check`, scripts, errors |
 
-Интерфейс панелей — на английском, шрифтом и иконками самого Zen.
+The panel UI is in English, using Zen's own font and icons.
 
-Клик по значку открывает или прячет панель. Значки можно перетаскивать
-между четырьмя зонами — слева сверху, слева снизу, справа сверху, справа
-снизу: в какой зоне значок, там и открывается его панель. На одной стороне
-помещаются две панели (верх и низ), их ширину и границу между ними можно
-тянуть мышью. Старая боковая панель Firefox убрана (мод `no-firefox-sidebar`).
+Clicking an icon opens or hides its panel. Icons can be dragged between four
+zones — left top, left bottom, right top, right bottom: a panel opens in the
+zone where its icon is. One side fits two panels (top and bottom); their width
+and the border between them can be dragged with the mouse. The old Firefox
+sidebar is removed (the `no-firefox-sidebar` mod).
 
-## ИИ-помощник в браузере
+## AI assistant in the browser
 
-Значок ✦ AI на тулбаре (по умолчанию справа сверху), **Cmd+Shift+E** или пункт
-«Спросить помощника» в контекстном меню страницы (подставит выделенный текст).
+The ✦ AI icon on the toolbar (top right by default), **Cmd+Shift+E**, or the
+"Ask the assistant" item in the page context menu (it fills in the selected
+text).
 
-Пока ничего не подключено, панель предлагает выбрать способ — их можно
-подключить несколько сразу:
+While nothing is connected, the panel offers to pick a method — you can
+connect several at once:
 
-- **Claude** — внутри тот же Claude Code, что и в терминале: панель запускает
-  `claude -p` в папке Zendo, поэтому помощник знает AGENTS.md и
-  умеет делать всё, что описано выше, — темы, моды, стили сайтов, скрипты.
-  Вход — общий с терминалом (`claude auth login`); панель только проверяет
-  его через `claude auth status`.
-- **ChatGPT** — вход через аккаунт ChatGPT (Plus/Pro/Team), без Codex CLI.
-  Откроется вкладка входа OpenAI; после входа браузер сам заберёт токен и
-  закроет вкладку. Запросы идут на `chatgpt.com/backend-api/codex` тем же
-  путём, что у официального Codex; для сторонних программ OpenAI его
-  официально не поддерживает и может изменить.
-- **API key** — ключ Anthropic (`sk-ant-…`) или OpenAI; оплата по тарифу API.
-  Ключ проверяется запросом списка моделей. Модели Claude по API идут с
-  `fallbacks: "default"`: если фильтр безопасности отклонит запрос, API сам
-  повторит его на подходящей модели.
+- **Claude** — under the hood it's the same Claude Code as in the terminal: the
+  panel runs `claude -p` in the Zendo folder, so the assistant knows AGENTS.md
+  and can do everything described above — themes, mods, site styles, scripts.
+  Sign-in is shared with the terminal (`claude auth login`); the panel only
+  checks it via `claude auth status`.
+- **ChatGPT** — sign in with a ChatGPT account (Plus/Pro/Team), no Codex CLI
+  needed. An OpenAI sign-in tab opens; after you sign in, the browser picks up
+  the token and closes the tab. Requests go to `chatgpt.com/backend-api/codex`
+  the same way the official Codex does; OpenAI doesn't officially support it
+  for third-party programs and may change it.
+- **API key** — an Anthropic (`sk-ant-…`) or OpenAI key; billed at API rates.
+  The key is verified by requesting the model list. Claude models over the API
+  use `fallbacks: "default"`: if the safety filter rejects a request, the API
+  retries it on a suitable model.
 
-Токены и ключи хранятся в менеджере паролей (about:logins → `chrome://kit-ai`).
-ChatGPT и API правят файлы своими инструментами (`read_file`, `search_files`,
-`edit_file`, `write_file`, `run_command`) — в базе и личном слое; менять
-`zen-source/`, `utils/`, `program/` и `.git/` им нельзя.
+Tokens and keys are stored in the password manager (about:logins →
+`chrome://kit-ai`). ChatGPT and the API edit files with their own tools
+(`read_file`, `search_files`, `edit_file`, `write_file`, `run_command`) — in the
+base and the personal layer; they may not change `zen-source/`, `utils/`,
+`program/` or `.git/`.
 
-В шапке панели — новый чат, история (разговоры хранятся в профиле Zen,
-`kit-ai-chats/`, и продолжаются с того же места), меню аккаунтов (выйти из
-любого или подключить ещё один) и ↻. Под полем ввода — модель и усилие
-(reasoning effort); модель меняется посреди разговора, другой способ
-подключения начинает новый чат. Файлы прикрепляются кнопкой +,
-перетаскиванием в панель или вставкой картинки (Cmd+V): картинки уходят
-модели прямо в сообщении, PDF и текст — тоже (Claude Code читает их с диска,
-из `kit-ai-attachments/` в профиле). Пилюля с названием вкладки — делиться
-ли активной вкладкой и выделенным текстом; клик выключает.
+The panel header has new chat, history (conversations are stored in the Zen
+profile, `kit-ai-chats/`, and resume where they left off), the accounts menu
+(sign out of any of them or connect another) and ↻. Below the input field are
+the model and the reasoning effort; the model can be changed mid-conversation,
+while switching to another connection method starts a new chat. Files are
+attached with the + button, by dragging them onto the panel or by pasting an
+image (Cmd+V): images go to the model right in the message, as do PDFs and
+text (Claude Code reads them from disk, from `kit-ai-attachments/` in the
+profile). The pill with the tab title controls whether to share the active
+tab and selected text; click to turn it off.
 
-Кроме файлов, обеим моделям доступны инструменты браузера:
+Besides files, both models have browser tools:
 
-| Инструмент | Что делает | Подтверждение |
+| Tool | What it does | Confirmation |
 |---|---|---|
-| `list_tabs`, `select_tab`, `open_url` | вкладки и навигация | нет |
-| `get_page` | текст страницы, ссылки, поля форм | нет |
-| `screenshot` | снимок страницы или всего окна браузера | нет |
-| `query_browser_ui` | разметка интерфейса Zen по селектору | нет |
-| `run_page_js` | JS на странице: клики, формы, сбор данных | да |
-| `run_browser_js` | JS в окне браузера — правка «на лету», до перезапуска | да |
-| `close_tab` | закрыть вкладку | да |
+| `list_tabs`, `select_tab`, `open_url` | tabs and navigation | no |
+| `get_page` | page text, links, form fields | no |
+| `screenshot` | a screenshot of the page or the whole browser window | no |
+| `query_browser_ui` | Zen UI markup by selector | no |
+| `run_page_js` | JS on the page: clicks, forms, data collection | yes |
+| `run_browser_js` | JS in the browser window — live edits until a restart | yes |
+| `close_tab` | close a tab | yes |
 
-Команды shell, кроме `bin/check|status|sync|theme|mod|site`,
-`git [-C <папка>] status|diff|log|add|commit`, `ls` и `grep`, и правка файлов
-вне базы и личного слоя тоже идут через подтверждение
-в панели. Можно нажать «Разрешать всё в этом разговоре».
+Shell commands other than `bin/check|status|sync|theme|mod|site`,
+`git [-C <folder>] status|diff|log|add|commit`, `ls` and `grep`, as well as
+edits to files outside the base and the personal layer, also require
+confirmation in the panel. You can click "Allow all in this chat".
 
-Постоянные правки браузера помощник пишет в файлы и коммитит, а применить
-их — кнопка ↻ в шапке панели: браузер перезапустится с очисткой кэша
-скриптов, и разговор продолжится с того же места.
+The assistant writes permanent browser changes to files and commits them; to
+apply them, press ↻ in the panel header: the browser restarts with the script
+cache cleared, and the conversation continues where it left off.
 
-Как это устроено: `JS/kit-ai.uc.js` (панель и инструменты),
-`JS/kit-ai.sys.mjs` (MCP-сервер и запуск Claude Code),
-`resources/kit-ai/chatgpt.sys.mjs` (вход в ChatGPT и цикл агента),
-`resources/kit-ai/api.sys.mjs` (ключи Anthropic и OpenAI, их агенты),
-`CSS/kit-ai.uc.css` (вид панели). Инструменты браузера отдаются Claude Code
-по MCP через локальный сервер: он слушает только 127.0.0.1 на случайном
-порту и пускает лишь с одноразовым токеном. С Claude Code браузер в сеть не
-ходит; с ChatGPT и API запросы к модели отправляет сам браузер.
+How it works: `JS/kit-ai.uc.js` (panel and tools),
+`JS/kit-ai.sys.mjs` (MCP server and launching Claude Code),
+`resources/kit-ai/chatgpt.sys.mjs` (ChatGPT sign-in and the agent loop),
+`resources/kit-ai/api.sys.mjs` (Anthropic and OpenAI keys, their agents),
+`CSS/kit-ai.uc.css` (panel appearance). Browser tools are given to Claude Code
+over MCP through a local server: it listens only on 127.0.0.1 on a random port
+and accepts only a one-time token. With Claude Code the browser doesn't go
+online itself; with ChatGPT and the API the browser sends the model requests
+itself.
 
-Настройки (about:config) — то же, что меню под полем ввода; пусто — по умолчанию:
-- `kit.ai.provider` — `claude`, `chatgpt`, `anthropic` или `openai`;
-- `kit.ai.model`, `kit.ai.claude-effort` — модель (`opus`, `sonnet`, `haiku`) и усилие Claude Code;
+Preferences (about:config) — the same as the menu below the input field; empty
+means default:
+- `kit.ai.provider` — `claude`, `chatgpt`, `anthropic` or `openai`;
+- `kit.ai.model`, `kit.ai.claude-effort` — Claude Code model (`opus`, `sonnet`, `haiku`) and effort;
 - `kit.ai.openai-model`, `kit.ai.openai-effort` — ChatGPT;
-- `kit.ai.anthropic-model`, `kit.ai.anthropic-effort` — Anthropic API (по умолчанию `claude-opus-5-5`);
+- `kit.ai.anthropic-model`, `kit.ai.anthropic-effort` — Anthropic API (default `claude-opus-5-5`);
 - `kit.ai.openai-api-model`, `kit.ai.openai-api-effort` — OpenAI API;
-- `kit.ai.claude-connected` — аккаунт Claude Code, подключённый в панели;
-- `kit.ai.claude-models` — какие версии Claude Code запускал под псевдонимами
-  (`opus` → `claude-opus-5-5`); панель обновляет его сама и показывает версии в меню;
-- `kit.ai.claude-path` — путь к `claude`, если он не нашёлся сам;
-- `kit.ai.repo` — путь к репозиторию, если профиль подключён не через `bin/install`.
+- `kit.ai.claude-connected` — the Claude Code account connected in the panel;
+- `kit.ai.claude-models` — which Claude Code versions ran under the aliases
+  (`opus` → `claude-opus-5-5`); the panel updates it itself and shows the
+  versions in the menu;
+- `kit.ai.claude-path` — path to `claude`, if it wasn't found automatically;
+- `kit.ai.repo` — path to the repository, if the profile wasn't connected via
+  `bin/install`.
 
-## Что полезно знать
+## Good to know
 
-- **Если убрать папки Zendo**, Zen откроется с обычным видом — ничего не
-  сломается, просто без настроек. Переносишь базу — запусти в новом месте
-  `bin/app` и открой Zendo.app: он сам переподключит профиль.
-- **user.js главнее интерфейса.** Настройки из `user.js` базы и личного слоя
-  применяются при каждом запуске и перебивают то, что выставлено в
-  настройках Zen. Хочешь менять настройку в интерфейсе — не пиши её в `user.js`.
-- **CSS без перезапуска.** Тема, моды, стили сайтов, личные `userChrome.css`,
-  `userContent.css` и `CSS/*.uc.css` применяются в течение секунды после
-  сохранения файла — их подключает `JS/kit-live-css.sys.mjs`, а импорты в
-  `userChrome.css` / `userContent.css` при этом выключены условием
-  `not -moz-pref("kit.css.live")`. Без `--autoconfig` работают обычные
-  импорты, и тогда нужен перезапуск. Новый `*.uc.css`, JS и `user.js` —
-  всегда после перезапуска.
-- **Инспектор.** Browser Toolbox (Cmd+Opt+Shift+I) — узнать id и классы
-  любой части интерфейса.
-- **Встроенные моды Zen** (Zen Mods из настроек) продолжают работать — они
-  живут в профиле отдельно (`chrome/zen-themes*`) и проект их не трогает.
+- **If you remove the Zendo folders**, Zen opens with its usual look — nothing
+  breaks, it's just without the customizations. If you move the base, run
+  `bin/app` in the new location and open Zendo.app: it reconnects the profile
+  itself.
+- **user.js wins over the UI.** Preferences from the base's and personal
+  layer's `user.js` are applied on every start and override what's set in Zen's
+  settings. If you want to change a preference in the UI, don't put it in
+  `user.js`.
+- **CSS without restart.** The theme, mods, site styles, personal
+  `userChrome.css`, `userContent.css` and `CSS/*.uc.css` apply within a second
+  of saving the file — `JS/kit-live-css.sys.mjs` loads them, and the imports in
+  `userChrome.css` / `userContent.css` are then disabled by the
+  `not -moz-pref("kit.css.live")` condition. Without `--autoconfig` regular
+  imports work, and then a restart is needed. A new `*.uc.css`, JS and
+  `user.js` always need a restart.
+- **Inspector.** Browser Toolbox (Cmd+Opt+Shift+I) — find the id and classes
+  of any part of the UI.
+- **Zen's built-in mods** (Zen Mods from the settings) keep working — they
+  live separately in the profile (`chrome/zen-themes*`) and the project doesn't
+  touch them.
 
-## Лицензия
+## License
 
-[MIT](LICENSE). Сторонний код — со своими лицензиями: fx-autoconfig — MPL-2.0
-(`profile/chrome/utils/`, `program/`), иконки — Lucide (ISC), Simple Icons
-(CC0), Material Symbols (Apache 2.0); подробности — в разделе «Сторонний код»
-[AGENTS.md](AGENTS.md).
+[MIT](LICENSE). Third-party code comes with its own licenses: fx-autoconfig —
+MPL-2.0 (`profile/chrome/utils/`, `program/`), icons — Lucide (ISC), Simple
+Icons (CC0), Material Symbols (Apache 2.0); details in the "Third-party code"
+section of [AGENTS.md](AGENTS.md).

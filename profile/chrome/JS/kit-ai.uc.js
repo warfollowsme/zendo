@@ -3,10 +3,10 @@
 // @description    AI panel (Claude Code, ChatGPT or an API key): reads and changes open pages and the browser itself (Cmd+Shift+E)
 // ==/UserScript==
 
-// Панель создаётся в каждом окне. У каждого окна свой MCP-сервер и свой
-// процесс Claude Code, поэтому «активная вкладка» — всегда вкладка этого окна.
-// Ядро (MCP-сервер, запуск claude) — в kit-ai.sys.mjs, ChatGPT — в
-// resources/kit-ai/chatgpt.sys.mjs, API-ключи Anthropic и OpenAI — в resources/kit-ai/api.sys.mjs.
+// The panel is created in every window. Each window has its own MCP server and its
+// own Claude Code process, so "the active tab" is always a tab of this window.
+// The core (MCP server, launching claude) is in kit-ai.sys.mjs, ChatGPT in
+// resources/kit-ai/chatgpt.sys.mjs, Anthropic and OpenAI API keys in resources/kit-ai/api.sys.mjs.
 (function () {
   if (!window.gBrowser || document.getElementById("kit-ai-panel")) {
     return;
@@ -14,7 +14,7 @@
 
   const HTML = "http://www.w3.org/1999/xhtml";
   const { Subprocess } = ChromeUtils.importESModule("resource://gre/modules/Subprocess.sys.mjs");
-  const PREF_RESUME = "kit.ai.resume-session"; // id разговора, который открыть после перезапуска
+  const PREF_RESUME = "kit.ai.resume-session"; // id of the chat to open after a restart
   const PREF_PROVIDER = "kit.ai.provider"; // "claude" | "chatgpt" | "anthropic" | "openai"
   const CHATGPT_URL = "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
   const API_URL = "chrome://userchrome/content/kit-ai/api.sys.mjs";
@@ -35,7 +35,7 @@ Browser tools, all acting on the window where the panel is open:
 How to work:
 - A question about the open page — start with get_page (or screenshot if the look matters).
 - An action on a page — inspect it first (get_page mode=forms), then run_page_js. Check the result afterwards.
-- A permanent change to the browser — by default in the personal layer, following AGENTS.md (user.js, theme, mod, site style, script); after adding or removing a file there run bin/sync, then bin/check, and commit in the layer you changed.
+- A permanent change to the browser — by default in the personal layer, following AGENTS.md (user.js, theme, mod, site style, script); after adding or removing a file there run bin/sync, then bin/check, and commit in the layer you changed (commit messages in English in the base, in the user's language in the personal layer).
   Only wrap Zen from the outside: prefs, CSS, scripts that use public Zen/Firefox APIs, events and attributes.
   Never edit zen-source/, utils/, program/ or the Zen app itself, never replace Zen's methods or touch its private state —
   that is lost on the next Zen update. If a task can't be done without that, stop and explain it to the user instead.
@@ -52,13 +52,13 @@ Files: read_file, list_files, search_files, write_file, edit_file; commands — 
 Paths are relative to the repository root; files of the personal layer — by absolute path. Zen sources for looking up selectors are in zen-source/ (read-only).
 After editing run bin/check, then commit: in the base git add … && git commit -m "…", in the personal layer git -C <personal layer> add … && git -C <personal layer> commit -m "…" (see AGENTS.md).`;
 
-  // Личные указания из <личный слой>/AGENTS.md — в конец системного промпта.
+  // Personal instructions from <personal layer>/AGENTS.md go at the end of the system prompt.
   async function personalPrompt() {
     const text = (await KitAI.personalAgents()).trim();
     return text ? `\n\n# Personal instructions (${PathUtils.join(KitAI.findUserDir(), "AGENTS.md")})\n\n${text}` : "";
   }
 
-  // Инструменты, которым подтверждение не нужно: только чтение и навигация.
+  // Tools that need no approval: read-only and navigation.
   const ALLOWED_TOOLS = [
     "mcp__zen__list_tabs",
     "mcp__zen__get_page",
@@ -90,8 +90,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     "Bash(grep *)",
   ];
 
-  // Чужой код, который перезаписывается при обновлении (см. AGENTS.md), —
-  // только читать. Правило Edit(путь) закрывает все инструменты правки файлов.
+  // Third-party code that is overwritten on update (see AGENTS.md) is
+  // read-only. An Edit(path) rule blocks all file-editing tools.
   const DENIED_TOOLS = ["zen-source", "profile/chrome/utils", "program"].map(dir => `Edit(${dir}/**)`);
 
   const tabArg = { type: "integer", description: "Tab number from list_tabs; the active tab by default" };
@@ -179,7 +179,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     },
   ];
 
-  // ---------------------------------------------------------------- инструменты
+  // ---------------------------------------------------------------- tools
 
   function tabAt(index) {
     if (index === undefined || index === null) {
@@ -192,12 +192,12 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     return tab;
   }
 
-  // Работа со страницей идёт через frame script, который передаётся строкой
-  // (data:-адрес): JSWindowActor'ы, зарегистрированные после старта, Zen в
-  // процессы сайтов не пускает, а файлы с внешнего диска песочница вкладок не видит.
-  // Функция pageWorker выполняется целиком в процессе вкладки: замыканий у неё
-  // нет, всё нужное — внутри. Код, который просит выполнить помощник, идёт в
-  // песочницу с правами самой страницы.
+  // Pages are handled through a frame script passed as a string (a data: URL):
+  // Zen does not let JSWindowActors registered after startup into site
+  // processes, and the tab sandbox cannot see files on an external disk.
+  // pageWorker runs entirely in the tab process: it has no closures,
+  // everything it needs is inside. Code the assistant asks to run goes into
+  // a sandbox with the page's own privileges.
   function pageWorker(id, name, data) {
     const MAX_ITEMS = 300;
     const win = content;
@@ -297,7 +297,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
   }
 
   let pageRequest = 0;
-  // встроенные страницы с паролями, ключами и настройками
+  // internal pages with passwords, keys and settings
   const PRIVATE_PAGES = /^about:(logins|passwords|config|keyboard|certificate|policies|debugging)\b/i;
 
   function pageQuery(tab, name, data = {}, timeout = 30000) {
@@ -306,8 +306,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     if (!browser.browsingContext?.currentWindowGlobal || !browser.messageManager) {
       return Promise.reject(new Error("The tab is not loaded — make it active first (select_tab)"));
     }
-    // Встроенные страницы (about:license, about:support…) можно читать, но не
-    // выполнять на них JS: у них права браузера. Пароли и настройки — закрыты.
+    // Internal pages (about:license, about:support…) can be read, but no JS
+    // runs on them: they have browser privileges. Passwords and settings are off-limits.
     const spec = browser.currentURI.spec;
     const web = ["http", "https", "file"].includes(scheme);
     if (!web && !(scheme === "about" && name !== "eval" && !PRIVATE_PAGES.test(spec))) {
@@ -492,8 +492,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
 
   // ------------------------------------------------------------------- markdown
 
-  // Ответы модели рендерятся только через createElement/textContent —
-  // никакого innerHTML: это окно браузера с полными правами.
+  // Model replies are rendered only via createElement/textContent —
+  // no innerHTML: this is a browser window with full privileges.
   function el(tag, cls, content) {
     const node = document.createElementNS(HTML, tag);
     if (cls) {
@@ -587,7 +587,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     }
   }
 
-  // ---------------------------------------------------------------------- панель
+  // ---------------------------------------------------------------------- panel
 
   const TOOL_LABELS = {
     mcp__zen__list_tabs: "listing tabs",
@@ -626,7 +626,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     return detail ? `${label}: ${String(detail).slice(0, 120)}` : label;
   }
 
-  // ---- способы подключения и модели
+  // ---- connection methods and models
 
   const ICONS = "chrome://userchrome/content/kit-ai/icons/";
   const PROVIDERS = {
@@ -636,7 +636,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     openai: { name: "OpenAI API", icon: ICONS + "openai.svg" },
   };
   const PROVIDER_ORDER = ["claude", "chatgpt", "anthropic", "openai"];
-  // "" — модель / усилие по умолчанию
+  // "" — default model / effort
   const MODEL_PREF = {
     claude: "kit.ai.model",
     chatgpt: "kit.ai.openai-model",
@@ -655,9 +655,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     anthropic: ["low", "medium", "high", "xhigh", "max"],
     openai: ["low", "medium", "high"],
   };
-  // Claude Code принимает псевдонимы (opus → последняя Opus). Какую версию он
-  // реально запустил, видно из события init — панель запоминает это в
-  // kit.ai.claude-models и показывает версию; до первого запуска — эти.
+  // Claude Code accepts aliases (opus → the latest Opus). The version it
+  // actually ran is reported in the init event — the panel stores it in
+  // kit.ai.claude-models and shows it; before the first run, these are shown.
   const CLAUDE_MODELS = [
     { id: "fable", known: "claude-fable-5-1" },
     { id: "opus", known: "claude-opus-5-5" },
@@ -684,9 +684,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     const resolved = claudeResolved();
     return CLAUDE_MODELS.map(m => ({ id: m.id, name: prettyModel(resolved[m.id] || m.known) }));
   }
-  const PREF_CLAUDE = "kit.ai.claude-connected"; // email аккаунта Claude Code; пусто — не подключён
+  const PREF_CLAUDE = "kit.ai.claude-connected"; // Claude Code account email; empty — not connected
 
-  // ---- история разговоров: <профиль>/kit-ai-chats/<id>.json + index.json
+  // ---- chat history: <profile>/kit-ai-chats/<id>.json + index.json
 
   const CHATS_DIR = () => PathUtils.join(PathUtils.profileDir, "kit-ai-chats");
   const ATTACH_DIR = () => PathUtils.join(PathUtils.profileDir, "kit-ai-attachments");
@@ -736,7 +736,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     return new Date(ms).toLocaleDateString("en", { month: "short", day: "numeric" });
   }
 
-  // ---- вложения
+  // ---- attachments
 
   const MAX_FILE = 20 * 1024 * 1024;
   const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -750,8 +750,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     return btoa(s);
   }
 
-  // Большие картинки и форматы, которые модели не принимают (HEIC, BMP, …),
-  // перекодируются в JPEG не больше 2000 px по длинной стороне.
+  // Large images and formats models don't accept (HEIC, BMP, …) are
+  // re-encoded to JPEG, at most 2000 px on the long side.
   async function shrinkImage(file) {
     const bitmap = await createImageBitmap(file);
     const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
@@ -802,21 +802,21 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.server = null;
       this.session = null;
       this.agent = null;
-      this.bubble = null; // текущий текст ассистента, который дописывается
+      this.bubble = null; // the assistant text currently being streamed
       this.bubbleText = "";
       this.streamed = false;
-      this.chips = new Map(); // tool_use_id → элемент
-      this.pending = new Set(); // ожидающие подтверждения
-      this.files = []; // вложения для следующего сообщения
+      this.chips = new Map(); // tool_use_id → element
+      this.pending = new Set(); // awaiting approval
+      this.files = []; // attachments for the next message
       this.shareTab = true;
-      this.accounts = {}; // provider → { label } у подключённых
+      this.accounts = {}; // provider → { label } for connected ones
       this.modelLists = {}; // provider → [{ id, name }]
       this.provider = Services.prefs.getStringPref(PREF_PROVIDER, "");
       this.chat = this.newChatRecord();
       this.build();
     }
 
-    // ---- модули моделей
+    // ---- model modules
 
     chatgpt() {
       return ChromeUtils.importESModule(CHATGPT_URL);
@@ -826,10 +826,10 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return ChromeUtils.importESModule(API_URL);
     }
 
-    // ---- разметка
+    // ---- markup
 
-    // Панель живёт внутри раскладки (kit-layout.uc.js): там её место, размер и
-    // показ/скрытие. Кнопки панели — в шапке, которую даёт раскладка.
+    // The panel lives inside the layout (kit-layout.uc.js), which handles its place,
+    // size and showing/hiding. Panel buttons go in the header the layout provides.
     build() {
       this.root = document.createXULElement("vbox");
       this.root.id = "kit-ai-panel";
@@ -855,7 +855,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.chatView.append(this.log, this.buildComposer());
       this.root.append(this.connectView, this.historyView, this.chatView);
 
-      // перетаскивание файлов в панель
+      // dragging files into the panel
       const hasFiles = dt => [...(dt?.types || [])].some(t => t === "Files" || t === "application/x-moz-file");
       this.root.addEventListener("dragover", e => {
         if (hasFiles(e.dataTransfer) && this.view === "chat") {
@@ -915,9 +915,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         }
       });
       this.input.addEventListener("input", () => this.autosize());
-      // вставка картинок (Cmd+V / Ctrl+V). Если в буфере есть текст — это
-      // обычная вставка текста: многие программы кладут рядом с текстом ещё
-      // и картинку, и её нельзя принимать за вложение.
+      // pasting images (Cmd+V / Ctrl+V). If the clipboard has text, it is a
+      // plain text paste: many apps put an image next to the text, and it
+      // must not be taken for an attachment.
       this.input.addEventListener("paste", e => {
         const data = e.clipboardData;
         const files = [...(data?.files || [])];
@@ -944,9 +944,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return composer;
     }
 
-    // Копирование из ленты. Лента получает фокус по клику (tabindex), иначе
-    // фокус оставался в поле ввода и Cmd+C копировал его пустое выделение.
-    // Правый клик — меню Copy / Copy message / Select all.
+    // Copying from the feed. The feed takes focus on click (tabindex), otherwise
+    // focus stayed in the input and Cmd+C copied its empty selection.
+    // Right click — the Copy / Copy message / Select all menu.
     setupLogCopy() {
       const log = this.log;
       log.tabIndex = -1;
@@ -989,7 +989,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
-    // Текстовая кнопка — «пилюля», как кнопки в панелях раскладки.
+    // Text button — a "pill", like the buttons in layout panels.
     button(label, title, onClick) {
       const b = el("button", "kit-button", label);
       b.title = title;
@@ -997,7 +997,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return b;
     }
 
-    // Кнопка-иконка: иконка Zen по имени ("plus") или полный chrome:// адрес.
+    // Icon button: a Zen icon by name ("plus") or a full chrome:// URL.
     iconButton(icon, title, onClick) {
       const b = el("button", "kit-icon-button kit-mask-icon");
       b.title = title;
@@ -1017,7 +1017,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return span;
     }
 
-    // Меню — XUL menupopup (на macOS — системное меню).
+    // Menu — a XUL menupopup (a native menu on macOS).
     menu(id) {
       let popup = document.getElementById(id);
       if (!popup) {
@@ -1042,7 +1042,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return item;
     }
 
-    // ---- аккаунты
+    // ---- accounts
 
     async refreshAccounts() {
       const accounts = {};
@@ -1096,7 +1096,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
-    // Выбор способа подключения: ChatGPT по подписке, Claude Code, API-ключ.
+    // Choosing how to connect: ChatGPT subscription, Claude Code, API key.
     showConnect() {
       const view = this.connectView;
       view.replaceChildren();
@@ -1211,8 +1211,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
-    // Claude Code входит в аккаунт сам (`claude auth login`, общий вход для
-    // всех запусков claude) — панель лишь проверяет, что вход есть.
+    // Claude Code signs in on its own (`claude auth login`, shared by all
+    // claude runs) — the panel only checks that it is signed in.
     async connectClaude(say) {
       say("Checking Claude Code…");
       const status = await KitAI.claudeAuth().catch(e => ({ error: e }));
@@ -1281,7 +1281,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       await this.refreshAccounts();
     }
 
-    // ---- модели
+    // ---- models
 
     async loadModels(provider) {
       if (this.modelLists[provider]) {
@@ -1313,8 +1313,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return provider ? Services.prefs.getStringPref(EFFORT_PREF[provider], "") : "";
     }
 
-    // Модель «по умолчанию»: у Claude Code — как в его настройках, у ChatGPT и
-    // OpenAI — первая из списка, у Anthropic — claude-opus-5-5.
+    // The "default" model: for Claude Code — as in its settings, for ChatGPT and
+    // OpenAI — the first in the list, for Anthropic — claude-opus-5-5.
     defaultModel(provider) {
       if (provider === "anthropic") {
         return this.api().API_PROVIDERS.anthropic.defaultModel;
@@ -1387,13 +1387,13 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       popup.openPopup(this.effortButton, "before_end");
     }
 
-    // Модель меняется и посреди разговора; другой способ подключения — новый чат.
+    // The model can change mid-chat; a different connection method means a new chat.
     async selectModel(provider, id) {
       if (provider !== this.provider) {
         await this.selectProvider(provider);
       }
       Services.prefs.setStringPref(MODEL_PREF[provider], id);
-      this.session?.stop(); // Claude Code перезапустится с новой моделью и тем же разговором
+      this.session?.stop(); // Claude Code restarts with the new model and the same chat
       if (this.agent) {
         this.agent.model = id || this.defaultModel(provider) || this.agent.model;
       }
@@ -1425,7 +1425,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.updateModel();
     }
 
-    // ---- вложения
+    // ---- attachments
 
     pickFiles() {
       const fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
@@ -1497,11 +1497,11 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return path;
     }
 
-    // Сообщение в формате модели: текст + картинки, PDF, текстовые файлы.
+    // A message in the model's format: text + images, PDFs, text files.
     async buildContent(text, files) {
       const p = this.provider;
       if (p === "claude") {
-        // картинки — прямо в сообщении, остальное — файлом на диске, Claude Code прочитает сам
+        // images go inline, everything else as a file on disk that Claude Code reads itself
         const blocks = [];
         const paths = [];
         for (const f of files) {
@@ -1542,7 +1542,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return parts;
     }
 
-    // ---- контекст вкладки
+    // ---- tab context
 
     updateContext() {
       const tab = gBrowser.selectedTab;
@@ -1571,7 +1571,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return `<browser-context>\n${lines.join("\n")}\n</browser-context>\n\n`;
     }
 
-    // ---- показ панели
+    // ---- showing the panel
 
     mount(body, actions) {
       actions.append(this.header);
@@ -1587,7 +1587,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
 
     toggle(force) {
       if (!window.KitLayout) {
-        // раскладка ещё не запустилась (скрипты окна стартуют по очереди) — чуть позже
+        // the layout hasn't started yet (window scripts start one by one) — try a bit later
         if (!this.waitedLayout) {
           this.waitedLayout = true;
           setTimeout(() => this.toggle(force), 500);
@@ -1612,7 +1612,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
-    // ---- разговоры
+    // ---- chats
 
     newChatRecord() {
       return {
@@ -1707,7 +1707,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         }
       }
       this.replaying = false;
-      // подсказки при открытии в историю разговора не пишем
+      // hints shown on open are not written to the chat history
       if (chat.provider && !this.accounts[chat.provider]) {
         this.log.append(el("div", "kit-ai-note", `This chat was with ${PROVIDERS[chat.provider]?.name || chat.provider}, which is not connected now.`));
       }
@@ -1759,7 +1759,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.showView("history");
     }
 
-    // ---- отправка
+    // ---- sending
 
     async submit() {
       const message = this.input.value.trim();
@@ -1822,7 +1822,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
 
     async restart() {
       await this.saveChat();
-      // новые личные скрипты и user.js — в профиль до перезапуска
+      // copy new personal scripts and user.js into the profile before restarting
       const repo = KitAI.findRepo();
       if (repo) {
         try {
@@ -1867,7 +1867,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
-    // ---- ChatGPT и API: цикл агента в самом браузере
+    // ---- ChatGPT and API: the agent loop runs in the browser itself
 
     async createAgent() {
       const repo = KitAI.findRepo();
@@ -1987,9 +1987,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
             "--disallowedTools",
             DENIED_TOOLS.join(","),
             "--add-dir",
-            ATTACH_DIR(), // вложения из панели
+            ATTACH_DIR(), // attachments from the panel
           ];
-          // личный слой (~/.config/zendo): туда идут личные правки
+          // personal layer (~/.config/zendo): personal changes go there
           const userDir = KitAI.findUserDir();
           if (userDir) {
             args.push("--add-dir", userDir);
@@ -2031,7 +2031,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         case "stream_event": {
           const e = event.event;
           if (event.parent_tool_use_id) {
-            break; // внутренняя работа субагентов — не показываем
+            break; // internal subagent work — not shown
           }
           if (e?.type === "content_block_start" && e.content_block?.type === "text") {
             this.startBubble();
@@ -2093,7 +2093,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
-    // ---- лента
+    // ---- feed
 
     startBubble() {
       if (this.bubble) {
@@ -2107,7 +2107,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     appendText(chunk) {
       this.bubbleText += chunk;
       if (this.replaying) {
-        return; // при показе из истории рисуем один раз в finishBubble
+        return; // when shown from history, render once in finishBubble
       }
       if (!this.renderQueued) {
         this.renderQueued = true;
@@ -2165,7 +2165,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
-    // ---- подтверждения
+    // ---- approvals
 
     askPermission(toolName, input) {
       if (this.trustAll) {
@@ -2225,7 +2225,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     }
   }
 
-  // ------------------------------------------------------------------- запуск
+  // ------------------------------------------------------------------- startup
 
   let KitAI;
   let panel;
@@ -2234,13 +2234,13 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     try {
       ({ KitAI } = ChromeUtils.importESModule("chrome://userscripts/content/kit-ai.sys.mjs"));
       panel = new Panel();
-      window.KitAIPanel = panel; // для отладки и run_browser_js
+      window.KitAIPanel = panel; // for debugging and run_browser_js
     } catch (e) {
       console.error("kit-ai:", e);
       return;
     }
 
-    // Горячая клавиша Cmd+Shift+E (Ctrl+Shift+E на других системах).
+    // Shortcut Cmd+Shift+E (Ctrl+Shift+E on other systems).
     const commands = document.createXULElement("commandset");
     const command = document.createXULElement("command");
     command.id = "kit-ai-toggle";
@@ -2256,7 +2256,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     keys.append(key);
     document.documentElement.append(commands, keys);
 
-    // Панель — инструмент раскладки: значок ✦ на тулбаре, по умолчанию справа сверху.
+    // The panel is a layout tool: the ✦ icon on the toolbar, top right by default.
     (window.kitLayoutQueue ??= []).push({
       id: "ai",
       title: "AI",
@@ -2267,7 +2267,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       onShow: () => panel.onShow(),
     });
 
-    // Пункт «Спросить помощника» в контекстном меню страницы.
+    // The "Ask the assistant" item in the page context menu.
     const menu = document.getElementById("contentAreaContextMenu");
     if (menu && !document.getElementById("kit-ai-context-item")) {
       const item = document.createXULElement("menuitem");

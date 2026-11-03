@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Собирает профиль Zen из базы (этот репозиторий) и личного слоя ($ZENDO_USER).
-#   bin/sync          — обновить ссылки в профиле и user.js
-#   bin/sync --quiet  — то же без вывода (так его зовут bin/mod, bin/launch…)
+# Builds the Zen profile from the base (this repo) and the personal layer ($ZENDO_USER).
+#   bin/sync          — update the profile's links and user.js
+#   bin/sync --quiet  — same, without output (as bin/mod, bin/launch… call it)
 #
-# В профиле chrome/:
-#   userChrome.css, userContent.css, resources, utils — ссылки на базу;
-#   user      — ссылка на личный слой;
-#   JS/, CSS/ — папки со ссылками на файлы базы и личного слоя
-#               (личный файл заменяет одноимённый базовый);
-#   kit/      — то же для тем, модов и стилей сайтов; theme.css, mods.css,
-#               sites.css — ссылки на выбор пользователя ($ZENDO_USER/current/).
-# user.js профиля собирается из profile/user.js и $ZENDO_USER/user.js.
+# In the profile's chrome/:
+#   userChrome.css, userContent.css, resources, utils — links to the base;
+#   user      — link to the personal layer;
+#   JS/, CSS/ — folders of links to base and personal files
+#               (a personal file replaces a base one of the same name);
+#   kit/      — same for themes, mods and site styles; theme.css, mods.css,
+#               sites.css — links to the user's selection ($ZENDO_USER/current/).
+# The profile's user.js is built from profile/user.js and $ZENDO_USER/user.js.
 #
-# Запускай после того, как добавил или удалил файл в личном слое; Zen можно
-# не закрывать. Код выхода 3 — проект ещё не подключён к профилю (bin/install).
+# Run it after adding or removing a file in the personal layer; Zen can stay
+# open. Exit code 3: the project is not connected to a profile yet (bin/install).
 source "$(dirname "$0")/_lib.sh"
 
 QUIET=0
@@ -26,7 +26,7 @@ PROFILE="$(cat "$KIT_STATE/profile")"
 CHROME="$PROFILE/chrome"
 mkdir -p "$CHROME"
 
-# ---- личный слой: недостающее берём из заготовки (папки, current/*.css, user.js)
+# ---- personal layer: fill in what's missing from the skeleton (folders, current/*.css, user.js)
 
 mkdir -p "$ZENDO_USER"
 while IFS= read -r f; do
@@ -40,9 +40,9 @@ done <<EOF
 $(cd "$KIT_SKEL" && find . -type f ! -name '._*' ! -name .DS_Store | sort)
 EOF
 
-# ---- ссылки
+# ---- links
 
-# link_to SRC DEST — DEST станет ссылкой на SRC; чужие файлы не трогаем
+# link_to SRC DEST — DEST becomes a link to SRC; foreign files are left alone
 link_to() {
   local src="$1" dest="$2"
   [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ] && return 0
@@ -57,12 +57,12 @@ link_to() {
   say "${dest#"$PROFILE"/} → $src"
 }
 
-# merge_dir DEST BASE USER — папка DEST со ссылками на файлы BASE и USER
+# merge_dir DEST BASE USER — folder DEST with links to the files of BASE and USER
 merge_dir() {
   local dest="$1" base="$2" user="$3" names name p
   if [ -L "$dest" ]; then
     is_ours "$dest" || { warn "skipped ${dest#"$PROFILE"/}: not created by this project"; return 0; }
-    rm "$dest" # раньше вся папка была одной ссылкой на базу
+    rm "$dest" # the whole folder used to be a single link to the base
   fi
   mkdir -p "$dest"
   names="$({ ls -A "$base" 2>/dev/null; ls -A "$user" 2>/dev/null; } |
@@ -77,7 +77,7 @@ merge_dir() {
   done <<EOF
 $names
 EOF
-  # ссылки на удалённые файлы
+  # links to deleted files
   for p in "$dest"/* "$dest"/.[!.]*; do
     [ -L "$p" ] || continue
     if ! printf '%s\n' "$names" | grep -qxF "$(basename "$p")"; then
@@ -105,7 +105,7 @@ for src in "$KIT_CHROME_SRC"/*; do
       for k in theme mods sites; do
         link_to "$ZENDO_USER/current/$k.css" "$CHROME/kit/$k.css"
       done
-      for p in "$CHROME/kit"/*; do # ссылки на то, чего больше нет в базе
+      for p in "$CHROME/kit"/*; do # links to things no longer in the base
         if [ -L "$p" ] && [ ! -e "$p" ]; then rm "$p"; fi
       done
       ;;
@@ -114,13 +114,13 @@ for src in "$KIT_CHROME_SRC"/*; do
 done
 link_to "$ZENDO_USER" "$CHROME/user"
 
-# ---- user.js: база, потом личные настройки (последнее значение побеждает)
+# ---- user.js: base, then personal prefs (the last value wins)
 
 USERJS="$PROFILE/user.js"
 tmp="$USERJS.tmp.$$"
 {
-  printf '%s — руками не правь.\n' "$SYNC_MARK"
-  printf '// База: %s\n// Личное: %s (идёт ниже и перебивает базу)\n\n' "$KIT_PROFILE_SRC/user.js" "$ZENDO_USER/user.js"
+  printf '%s — do not edit by hand.\n' "$SYNC_MARK"
+  printf '// Base: %s\n// Personal: %s (comes below and overrides the base)\n\n' "$KIT_PROFILE_SRC/user.js" "$ZENDO_USER/user.js"
   cat "$KIT_PROFILE_SRC/user.js"
   printf '\n// ==== %s ====\n\n' "$ZENDO_USER/user.js"
   cat "$ZENDO_USER/user.js" 2>/dev/null || true
@@ -131,7 +131,7 @@ if [ -e "$USERJS" ] && ! is_ours "$USERJS"; then
 elif [ -f "$USERJS" ] && [ ! -L "$USERJS" ] && cmp -s "$tmp" "$USERJS"; then
   rm -f "$tmp"
 else
-  rm -f "$USERJS" # раньше здесь была ссылка на profile/user.js
+  rm -f "$USERJS" # this used to be a link to profile/user.js
   mv "$tmp" "$USERJS"
   say "user.js rebuilt (applies after a Zen restart)"
 fi

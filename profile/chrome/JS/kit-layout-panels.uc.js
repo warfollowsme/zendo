@@ -3,11 +3,11 @@
 // @description    Built-in layout panels, Boosts management and Media display modes
 // ==/UserScript==
 
-// Панели создаются раскладкой (kit-layout.uc.js) при первом открытии через
+// Panels are created by the layout (kit-layout.uc.js) on first open via
 // window.KitLayoutPanels.settings(body) / .develop(body).
-// Темы, моды и стили сайтов переключаются теми же командами bin/theme,
-// bin/mod, bin/site, что и из терминала, — файлы проекта остаются источником правды.
-// Вид — как у разделов «Библиотеки» Zen: группы с мелким заголовком, строки-«пилюли».
+// Themes, mods and site styles are switched with the same bin/theme,
+// bin/mod, bin/site commands as from the terminal; project files remain the source of truth.
+// Look matches Zen Library sections: groups with a small heading, pill-shaped rows.
 (function () {
   const HTML = "http://www.w3.org/1999/xhtml";
   const { Subprocess } = ChromeUtils.importESModule("resource://gre/modules/Subprocess.sys.mjs");
@@ -44,8 +44,8 @@
     return box;
   }
 
-  // Строка-переключатель, как в настройках Zen: галочка, затем название;
-  // пояснение — в подсказке при наведении.
+  // Toggle row, like in Zen settings: checkbox, then the name;
+  // the description goes in the hover tooltip.
   function toggleRow(id, title, hint, checked, onChange) {
     const row = el("label", "kit-row");
     row.htmlFor = id;
@@ -61,7 +61,7 @@
     return row;
   }
 
-  // ---------------------------------------------------------------- репозиторий и bin/*
+  // ---------------------------------------------------------------- repository and bin/*
 
   function findRepo() {
     const pref = Services.prefs.getStringPref("kit.ai.repo", "");
@@ -103,8 +103,8 @@
     return { exitCode, out: out.replace(/\x1b\[[0-9;]*m/g, "") };
   }
 
-  // Темы, моды и сайты читаем из kit/ профиля: там bin/sync собрал вместе
-  // файлы базы и личного слоя (~/.config/zendo).
+  // Themes, mods and sites are read from the profile's kit/: bin/sync has merged
+  // the base and personal layer files there (~/.config/zendo).
   const kitPath = (...parts) => PathUtils.join(Services.dirsvc.get("UChrm", Ci.nsIFile).path, "kit", ...parts);
 
   async function readMeta(path) {
@@ -129,7 +129,7 @@
     }
   }
 
-  // Перед перезапуском bin/sync: новые личные скрипты и user.js попадают в профиль.
+  // Run bin/sync before restarting: new personal scripts and user.js get into the profile.
   async function restart() {
     const repo = findRepo();
     if (repo) {
@@ -148,8 +148,8 @@
       body.append(el("div", "kit-empty", "The profile is not linked to the repository (bin/install) — themes and mods are unavailable."));
       return;
     }
-    // Тему, моды и стили сайтов на лету ставит kit-live-css.sys.mjs; без него
-    // (нет загрузчика скриптов) они подключаются @import и ждут перезапуска.
+    // Theme, mods and site styles are applied live by kit-live-css.sys.mjs; without it
+    // (no script loader) they're included via @import and wait for a restart.
     const status = el("div", "kit-status");
     const live = () => {
       try {
@@ -173,7 +173,7 @@
     };
 
     const render = async () => {
-      await bin(repo, "sync", "--quiet"); // новые файлы личного слоя — в список
+      await bin(repo, "sync", "--quiet"); // new personal layer files go into the list
       body.replaceChildren();
 
       const themeBox = group("Theme");
@@ -297,7 +297,7 @@
     }
     scripts.append(note);
 
-    // Ошибки наших скриптов и стилей — из общей консоли браузера.
+    // Errors from our scripts and styles, from the shared browser console.
     const errors = group("Project script errors");
     const list = el("div");
     errors.append(chips(button("Clear", () => list.replaceChildren())), list);
@@ -332,8 +332,8 @@
     body.append(tools, check, scripts, errors);
   }
 
-  // Дополняем штатный список Zen: поиск и его состояние остаются у раздела,
-  // New boost — рядом с поиском, действия строки — как в Extensions.
+  // We extend Zen's built-in list: search and its state stay with the section,
+  // New boost sits next to search, row actions are as in Extensions.
   function boosts(body) {
     const section = body?.querySelector("zen-library-boosts-section");
     if (!window.gBrowser || !section || document.getElementById("kit-boosts-new")) {
@@ -398,8 +398,8 @@
     plus.alt = "";
     create.append(plus, el("span", null, "New boost"));
 
-    // Порядок/фильтр соответствуют ZenLibraryBoostsSection.#boosts: так
-    // привязываем действия к штатным строкам, не создавая второй список.
+    // Order/filter match ZenLibraryBoostsSection.#boosts: this is how
+    // we bind actions to the built-in rows without creating a second list.
     function visibleBoosts() {
       const query = section.searchQuery.toLowerCase();
       const result = [];
@@ -458,8 +458,8 @@
         row.title = `${boost.name} — ${boost.domain}`;
         row.querySelectorAll(".kit-boosts-control").forEach(node => node.remove());
         const edit = control(boost, "edit", "Edit boost", "edit-theme", async () => {
-          // Штатный click открывает сайт в Glance и запускает редактор.
-          // Для выключенного буста сначала обновляем штатную привязку click.
+          // The built-in click opens the site in Glance and launches the editor.
+          // For a disabled boost, first refresh the built-in click binding.
           if (manager.getActiveBoostId(boost.domain) !== boost.id) {
             manager.makeBoostActiveForDomain(boost.domain, boost.id);
             await section.updateComplete;
@@ -479,8 +479,8 @@
       update();
     }
 
-    // Lit вызывает updated после каждого штатного рендера, в том числе поиска
-    // и переключения буста. Не подменяем render или обработчики списка Zen.
+    // Lit calls updated after every built-in render, including search
+    // and boost toggling. We don't replace render or Zen's list handlers.
     const nativeUpdated = section.updated;
     section.updated = function (changed) {
       nativeUpdated.call(this, changed);
@@ -508,12 +508,12 @@
 
   // ---------------------------------------------------------------- Media
 
-  // Вид раздела Media: карточки (как в Zen), список или таблица. Сам раздел —
-  // штатный, Zen его не знает о нашем виде: вид задаёт атрибут на нашем
-  // контейнере и CSS, а подписи — наши элементы внутри карточек Zen.
-  // Zen перестраивает карточки при поиске и смене папок — подписи
-  // добавляются заново по MutationObserver. Размера и даты в карточках нет
-  // (они только во внутренних данных раздела), поэтому в таблице — имя и тип.
+  // Media section view: cards (as in Zen), list or table. The section itself
+  // is built-in and Zen doesn't know about our view: the view is set by an attribute on our
+  // container plus CSS, and the captions are our own elements inside Zen's cards.
+  // Zen rebuilds the cards on search and folder changes, so captions
+  // are re-added via MutationObserver. Cards have no size or date
+  // (only the section's internal data does), so the table shows name and type.
   const MEDIA_VIEWS = [
     ["cards", "Cards"],
     ["list", "List"],

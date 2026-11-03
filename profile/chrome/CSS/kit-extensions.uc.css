@@ -5,12 +5,12 @@
 
 :root[kit-layout] .kit-extensions-body {
   overflow: hidden !important;
-  /* шапке поиска «Библиотеки» Zen нужны её переменные (zen-library.css) */
+  /* the Zen Library search header needs its variables (zen-library.css) */
   --zen-library-pill-bg: color-mix(in srgb, currentColor 7%, transparent);
   --zen-library-pill-hover-bg: color-mix(in srgb, currentColor 12%, transparent);
   --zen-library-radius: 12px;
-  /* шрифт, размеры и цвет текста — как в разделах «Библиотеки»
-     (.kit-library-body): от цвета текста считаются и фоны плашек */
+  /* font, sizes and text color as in Library sections
+     (.kit-library-body): row backgrounds are derived from the text color */
   font-size: 14px !important;
   color: var(--toolbar-color) !important;
 }
@@ -76,8 +76,8 @@
   display: none !important;
 }
 
-/* Иконки поверх строки, но не внутри кнопки открытия. Строка — как
-   .zen-library-row: прозрачная, плашка только при наведении. */
+/* Icons on top of the row, but not inside the open button. The row is like
+   .zen-library-row: transparent, highlighted only on hover. */
 :root[kit-layout] .kit-extensions-addon {
   position: relative !important;
   gap: 0 !important;
@@ -104,7 +104,7 @@
   text-align: start !important;
 }
 
-/* «Get more» — внизу, если поиск ничего не нашёл, и в шапке */
+/* "Get more": at the bottom when search finds nothing, and in the header */
 :root[kit-layout] #kit-extensions-store {
   font-size: 14px !important;
 }

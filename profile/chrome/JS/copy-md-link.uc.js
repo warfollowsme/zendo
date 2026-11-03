@@ -3,8 +3,8 @@
 // @description    Tab context menu item: copies the link as [title](url)
 // ==/UserScript==
 
-// Пример скрипта для fx-autoconfig. Работает, только если выполнен
-// `bin/install --autoconfig`. Скрипт запускается один раз на каждое окно браузера.
+// Example fx-autoconfig script. Works only after
+// `bin/install --autoconfig` has been run. The script runs once per browser window.
 (function () {
   const menu = document.getElementById("tabContextMenu");
   if (!menu || document.getElementById("kit-copy-md-link")) {

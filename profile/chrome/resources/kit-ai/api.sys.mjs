@@ -1,9 +1,9 @@
-// ИИ-помощник: подключение по API-ключу — Anthropic (Claude) или OpenAI.
-// Импортируется из JS/kit-ai.uc.js как chrome://userchrome/content/kit-ai/api.sys.mjs.
+// AI assistant: connecting with an API key — Anthropic (Claude) or OpenAI.
+// Imported from JS/kit-ai.uc.js as chrome://userchrome/content/kit-ai/api.sys.mjs.
 //
-// Ключ хранится в менеджере паролей (about:logins → chrome://kit-ai, «API»),
-// зашифрованным. Запросы идут напрямую на api.anthropic.com / api.openai.com
-// и оплачиваются по тарифу API, а не подписки.
+// The key is stored encrypted in the password manager (about:logins → chrome://kit-ai, "API").
+// Requests go directly to api.anthropic.com / api.openai.com
+// and are billed at API rates, not by subscription.
 
 import { ChatGPTAgent } from "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
 
@@ -17,12 +17,12 @@ export const API_PROVIDERS = {
   openai: { name: "OpenAI API", url: "https://api.openai.com/v1", defaultModel: "" },
 };
 
-// Anthropic: ключи начинаются с sk-ant-, остальные sk-… — OpenAI.
+// Anthropic keys start with sk-ant-, other sk-… keys are OpenAI.
 export function guessProvider(key) {
   return /^sk-ant-/.test(key.trim()) ? "anthropic" : "openai";
 }
 
-// ---------------------------------------------------------------- ключи
+// ---------------------------------------------------------------- keys
 
 async function findLogins(provider) {
   const logins = await Services.logins.searchLoginsAsync({ origin: LOGIN_ORIGIN, httpRealm: LOGIN_REALM });
@@ -61,7 +61,7 @@ function headers(provider, key) {
     return {
       "x-api-key": key,
       "anthropic-version": "2026-10-21",
-      // запрос идёт из браузера: без этого заголовка API отклоняет запросы с Origin
+      // the request comes from a browser: without this header the API rejects requests with an Origin
       "anthropic-dangerous-direct-browser-access": "true",
       "content-type": "application/json",
     };
@@ -79,11 +79,11 @@ async function errorText(response) {
   }
 }
 
-// ---------------------------------------------------------------- модели
+// ---------------------------------------------------------------- models
 
 const cachedModels = {};
 
-// Список моделей ключа; заодно проверяет, что ключ рабочий (бросает ошибку, если нет).
+// The key's model list; also checks that the key works (throws if not).
 export async function models(win, provider, key) {
   if (!key && cachedModels[provider]) {
     return cachedModels[provider];
@@ -98,7 +98,7 @@ export async function models(win, provider, key) {
   const json = await response.json();
   let list = (json.data || []).map(m => ({ id: m.id, name: m.display_name || m.id, created: m.created_at || m.created || 0 }));
   if (provider === "openai") {
-    // только чатовые модели: без эмбеддингов, озвучки, картинок и т.п.
+    // chat models only: no embeddings, speech, images, etc.
     list = list
       .filter(m => /^(gpt-|o\d|chatgpt-)/.test(m.id))
       .filter(m => !/audio|realtime|tts|transcribe|image|embedding|search|moderation|instruct/.test(m.id))
@@ -112,7 +112,7 @@ export async function models(win, provider, key) {
 
 // ---------------------------------------------------------------- OpenAI
 
-// Тот же Responses API, что у ChatGPT по подписке, — другой адрес и ключ.
+// The same Responses API as the ChatGPT subscription — different URL and key.
 export class OpenAIAgent extends ChatGPTAgent {
   label = "OpenAI API";
 
@@ -123,8 +123,8 @@ export class OpenAIAgent extends ChatGPTAgent {
 
 // ---------------------------------------------------------------- Anthropic
 
-// Цикл Messages API: ответ модели (поток) → вызовы инструментов → их
-// результаты одним сообщением → … Тот же интерфейс, что у ChatGPTAgent.
+// Messages API loop: model reply (stream) → tool calls → their
+// results in one message → … Same interface as ChatGPTAgent.
 export class AnthropicAgent {
   label = "Anthropic API";
 
@@ -149,8 +149,8 @@ export class AnthropicAgent {
     this.controller?.abort();
   }
 
-  // На каждый tool_use в истории нужен tool_result в следующем сообщении,
-  // иначе запрос отклонят. После остановки посреди хода дописываем недостающие.
+  // Every tool_use in the history needs a tool_result in the next message,
+  // or the request is rejected. After a stop mid-turn, add the missing ones.
   repairHistory() {
     const last = this.history.at(-1);
     if (last?.role !== "assistant") {
@@ -165,14 +165,14 @@ export class AnthropicAgent {
     }
   }
 
-  // content — строка или готовые блоки (text, image, document)
+  // content — a string or ready blocks (text, image, document)
   async send(content) {
     this.stopped = false;
     this.repairHistory();
     const blocks = typeof content === "string" ? [{ type: "text", text: content }] : content;
     const last = this.history.at(-1);
     if (last?.role === "user") {
-      last.content.push(...blocks); // после прерванного хода — к тем же tool_result
+      last.content.push(...blocks); // after an interrupted turn — append to the same tool_result
     } else {
       this.history.push({ role: "user", content: blocks });
     }
@@ -240,9 +240,9 @@ export class AnthropicAgent {
       body.output_config = { effort: this.effort };
     }
     const requestHeaders = headers("anthropic", await apiKey("anthropic"));
-    // Новые модели могут отклонить запрос фильтром безопасности (stop_reason
-    // "refusal"); с fallbacks API сам повторяет его на подходящей модели.
-    // Блоки "fallback" из ответа уходят обратно в историю вместе с остальными.
+    // Newer models may reject a request with a safety filter (stop_reason
+    // "refusal"); with fallbacks the API retries it on a suitable model itself.
+    // "fallback" blocks from the response go back into the history with the rest.
     if (FALLBACK_MODELS.test(this.model)) {
       body.fallbacks = "default";
       requestHeaders["anthropic-beta"] = "server-side-fallback-2026-07-01";
@@ -257,8 +257,8 @@ export class AnthropicAgent {
     });
   }
 
-  // Один ответ модели. Блоки ответа (текст, рассуждения, вызовы) копятся как
-  // пришли и целиком уходят в историю — рассуждения надо возвращать без изменений.
+  // One model reply. Response blocks (text, thinking, calls) are collected as they
+  // arrive and go into the history whole — thinking must be sent back unchanged.
   async respond() {
     let response;
     try {
@@ -376,7 +376,7 @@ export class AnthropicAgent {
 
     const content = blocks.filter(Boolean);
     const calls = content.filter(b => b.type === "tool_use");
-    // badInput — только наша пометка, в историю не идёт
+    // badInput is only our marker, it doesn't go into the history
     const clean = content.map(({ badInput, ...b }) => b);
     if (clean.length) {
       this.history.push({ role: "assistant", content: clean });
@@ -388,7 +388,7 @@ export class AnthropicAgent {
       throw new Error(`${this.model} declined to answer this request.`);
     }
     if (stopReason === "max_tokens" && calls.length) {
-      // вызов мог оборваться посередине — не выполняем его
+      // the call may have been cut off midway — don't run it
       for (const call of calls) {
         call.badInput = true;
       }

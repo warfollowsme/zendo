@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Исходники Zen для справки: селекторы, CSS-переменные, настройки, модули.
-#   bin/zen-source   — скачать (если нет) или обновить до последней версии
+# Zen sources for reference: selectors, CSS variables, prefs, modules.
+#   bin/zen-source   — download (if missing) or update to the latest version
 #
-# Это неглубокий клон zen-browser/desktop (только последний коммит).
-# Не правь его — изменения пропадут при обновлении. Свои правки — в profile/.
+# A shallow clone of zen-browser/desktop (latest commit only).
+# Don't edit it — changes are lost on update. Your edits go in profile/.
 source "$(dirname "$0")/_lib.sh"
 
 REPO="https://github.com/zen-browser/desktop.git"
@@ -16,7 +16,7 @@ else
   git -C "$KIT_ZEN_SOURCE" fetch --depth 1 origin
   git -C "$KIT_ZEN_SOURCE" reset --hard FETCH_HEAD
 fi
-# Внешний диск (exFAT): macOS кладёт рядом служебные ._-файлы, и git потом
-# спотыкается о них в .git/objects/pack («non-monotonic index»).
+# External disk (exFAT): macOS puts ._ metadata files alongside, and git then
+# trips over them in .git/objects/pack ("non-monotonic index").
 find "$KIT_ZEN_SOURCE" -name '._*' -type f -delete 2>/dev/null
 ok "Zen source $(zen_source_version || echo '?') ($(git -C "$KIT_ZEN_SOURCE" log -1 --format='%h, %cd' --date=short))"

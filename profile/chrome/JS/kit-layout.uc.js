@@ -3,24 +3,24 @@
 // @description    Toolbars on the window edges with four tool zones and island side panels
 // ==/UserScript==
 
-// Окно превращается в сетку (стили — CSS/kit-layout.uc.css):
+// The window becomes a grid (styles in CSS/kit-layout.uc.css):
 //
-//   ┌─ светофор · пространства 1 2 3 · навигация и адресная строка ─┐
-//   │ тулбар │ левая панель │     сайт     │ правая панель │ тулбар │
+//   ┌─ traffic lights · spaces 1 2 3 · navigation and URL bar ────┐
+//   │ toolbar │ left panel │     site     │ right panel │ toolbar │
 //
-// У каждого тулбара две зоны: верхняя (значки сверху вниз) и нижняя (снизу
-// вверх). В каждой зоне открыт максимум один инструмент. Инструмент из
-// верхней зоны занимает верх своей стороны, из нижней — низ; если на стороне
-// открыт один инструмент, он во всю высоту. Значки перетаскиваются между зонами.
+// Each toolbar has two zones: top (icons run top to bottom) and bottom (bottom
+// to top). Each zone has at most one tool open. A tool from the top zone takes
+// the top of its side, one from the bottom zone the bottom; if only one tool is
+// open on a side, it takes the full height. Icons can be dragged between zones.
 //
-// Вкладки — это панель самого Zen (#navigator-toolbox): её не переносим по
-// разметке, а только ставим в нужную ячейку сетки.
+// Tabs are Zen's own panel (#navigator-toolbox): we don't move it in the
+// markup, only place it in the right grid cell.
 //
-// Другие скрипты добавляют свои инструменты так (порядок загрузки не важен):
+// Other scripts add their tools like this (load order doesn't matter):
 //   (window.kitLayoutQueue ??= []).push({ id, title, icon, zone, create(body) {…} });
-// icon — имя иконки Zen ("settings" → chrome://browser/skin/zen-icons/settings.svg)
-// или "library:<раздел>" — анимированная иконка раздела «Библиотеки» Zen.
-// и управляют ими через window.KitLayout.show(id) / hide(id) / toggle(id).
+// icon: Zen icon name ("settings" → chrome://browser/skin/zen-icons/settings.svg)
+// or "library:<section>" for the animated icon of a Zen Library section,
+// and control them via window.KitLayout.show(id) / hide(id) / toggle(id).
 (function () {
   if (!window.gBrowser || document.getElementById("kit-strip-left")) {
     return;
@@ -41,13 +41,13 @@
     width: { left: 280, right: 380 },
     split: { left: 0.6, right: 0.6 },
   };
-  // Инструменты, которых больше нет: убираем из сохранённого расположения.
+  // Tools that no longer exist: drop them from the saved layout.
   const REMOVED_TOOLS = ["spaces"];
 
-  const tools = new Map(); // id → описание инструмента
-  const buttons = new Map(); // id → значок в тулбаре
-  const panels = new Map(); // id → элемент панели в сетке
-  const shown = new Set(); // инструменты, панели которых сейчас видны
+  const tools = new Map(); // id → tool definition
+  const buttons = new Map(); // id → toolbar icon
+  const panels = new Map(); // id → panel element in the grid
+  const shown = new Set(); // id → tools whose panels are currently visible
   let state;
   let browserBox;
   let strips;
@@ -65,8 +65,8 @@
   };
   const iconUrl = icon => (icon.includes("://") ? icon : ZEN_ICONS + icon + ".svg");
 
-  // Значок инструмента: иконка Zen через маску (цвет — от текста) или
-  // анимированный спрайт раздела «Библиотеки» — как на её боковой панели.
+  // Tool icon: a Zen icon via mask (color follows text) or the animated
+  // sprite of a Library section, as on the Library's own sidebar.
   function fillIcon(node, icon) {
     if (icon.startsWith("library:")) {
       node.dataset.section = icon.slice(8);
@@ -92,7 +92,7 @@
   const sideOf = zone => zone.split("-")[0];
   const otherZone = zone => zone.replace(/top|bottom/, part => (part === "top" ? "bottom" : "top"));
 
-  // ---------------------------------------------------------------- состояние
+  // ---------------------------------------------------------------- state
 
   function loadState() {
     let saved = {};
@@ -110,7 +110,7 @@
     }
     Object.assign(s.width, saved.width);
     Object.assign(s.split, saved.split);
-    // инструмент, которого нет ни в одной зоне (новый), — в его зону по умолчанию
+    // a tool not in any zone (new) goes to its default zone
     const placed = new Set(ZONES.flatMap(z => s.zones[z]));
     for (const zone of ZONES) {
       for (const id of DEFAULT_STATE.zones[zone]) {
@@ -131,7 +131,7 @@
     return ZONES.find(zone => state.zones[zone].includes(id)) || null;
   }
 
-  // ---------------------------------------------------------------- инструменты
+  // ---------------------------------------------------------------- tools
 
   function register(def) {
     if (!def?.id || tools.has(def.id)) {
@@ -139,9 +139,9 @@
     }
     tools.set(def.id, def);
     if (def.element) {
-      // Готовый элемент (панель вкладок Zen) включаем в раскладку сразу, а не
-      // при первом показе: иначе, пока он закрыт, сетка ставит его в первую
-      // свободную ячейку поверх сайта или других панелей.
+      // A ready-made element (Zen's tab panel) joins the layout right away, not
+      // on first show: otherwise, while it's closed, the grid puts it in the first
+      // free cell on top of the site or other panels.
       def.element.prepend(makeHeader(def.id, def.title).header);
       def.element.classList.add("kit-placed");
       panels.set(def.id, def.element);
@@ -166,7 +166,7 @@
     const def = tools.get(id);
     let panel;
     if (def.element) {
-      panel = def.element; // уже подготовлен в register()
+      panel = def.element; // already prepared in register()
     } else {
       panel = document.createXULElement("vbox");
       panel.id = `kit-panel-${id}`;
@@ -188,10 +188,10 @@
     return panel;
   }
 
-  // ---------------------------------------------------------------- раскладка
+  // ---------------------------------------------------------------- layout
 
   function apply() {
-    // значки по зонам
+    // icons by zone
     for (const zone of ZONES) {
       const list = state.zones[zone].filter(id => tools.has(id));
       zoneEls[zone].replaceChildren(...list.map(id => buttons.get(id)));
@@ -199,14 +199,14 @@
     for (const [id, button] of buttons) {
       const active = state.active[zoneOf(id)] === id;
       if (active && !button.hasAttribute("active")) {
-        // спрайт «Библиотеки» проигрывает анимацию при открытии, как в самом Zen
+        // the Library sprite plays its animation on open, just like in Zen itself
         button.setAttribute("animate", "true");
         setTimeout(() => button.removeAttribute("animate"), 700);
       }
       button.toggleAttribute("active", active);
     }
 
-    // какие панели где
+    // which panels go where
     const open = id => id && tools.has(id);
     const nowShown = new Set();
     for (const id of tools.keys()) {
@@ -224,7 +224,7 @@
       }
     }
 
-    // сетка
+    // grid
     const sides = {};
     for (const side of ["left", "right"]) {
       const top = open(state.active[`${side}-top`]);
@@ -246,7 +246,7 @@
     style.setProperty("--kit-left-line", fl === a ? 3 : 4);
     style.setProperty("--kit-right-line", fr === a ? 3 : 4);
 
-    // уведомить инструменты
+    // notify tools
     for (const id of nowShown) {
       if (!shown.has(id)) {
         tools.get(id).onShow?.();
@@ -266,7 +266,7 @@
     return Math.min(max, Math.max(min, Number(v) || 0.5));
   }
 
-  // ---------------------------------------------------------------- перетаскивание значков
+  // ---------------------------------------------------------------- icon dragging
 
   let drag = null;
 
@@ -336,7 +336,7 @@
       index = others.filter(b => centerY(b) < e.clientY).length;
       markerY = index < others.length ? others[index].getBoundingClientRect().top - 3 : others.length ? others.at(-1).getBoundingClientRect().bottom + 3 : rect.top + 6;
     } else {
-      // нижняя зона растёт снизу вверх
+      // the bottom zone grows from the bottom up
       index = others.filter(b => centerY(b) > e.clientY).length;
       markerY = index < others.length ? others[index].getBoundingClientRect().bottom + 3 : others.length ? others.at(-1).getBoundingClientRect().top - 3 : rect.bottom - 6;
     }
@@ -364,7 +364,7 @@
     const from = zoneOf(d.id);
     const wasActive = state.active[from] === d.id;
     state.zones[from] = state.zones[from].filter(t => t !== d.id);
-    // index считали среди зарегистрированных значков — переводим в индекс полного списка
+    // index was counted among registered icons; convert it to an index in the full list
     const list = state.zones[d.target.zone];
     const visible = list.filter(t => tools.has(t));
     const before = visible[d.target.index];
@@ -376,7 +376,7 @@
     apply();
   }
 
-  // ---------------------------------------------------------------- изменение размеров
+  // ---------------------------------------------------------------- resizing
 
   function setupResizers() {
     for (const side of ["left", "right"]) {
@@ -446,7 +446,7 @@
     },
   };
 
-  // ---------------------------------------------------------------- встроенные инструменты
+  // ---------------------------------------------------------------- built-in tools
 
   function pageTool(id, title, icon, src, zone) {
     return {
@@ -465,10 +465,10 @@
     };
   }
 
-  // Разделы «Библиотеки» Zen (история, загрузки, медиа, бусты) —
-  // это отдельные элементы <zen-library-*-section>. Ставим их прямо в панель.
-  // От самой «Библиотеки» им нужно немного: requestUpdate, keepOpenWhile и
-  // constructor.toggle (закрыть библиотеку после открытия ссылки) — даём заглушку.
+  // Zen Library sections (history, downloads, media, boosts) are
+  // separate <zen-library-*-section> elements. We put them straight into a panel.
+  // They need little from the Library itself: requestUpdate, keepOpenWhile and
+  // constructor.toggle (close the library after opening a link), so we give a stub.
   let libraryHost = null;
 
   function getLibraryHost() {
@@ -524,11 +524,11 @@
     ];
   }
 
-  // ---------------------------------------------------------------- верхняя полоса и центр
+  // ---------------------------------------------------------------- top bar and center
 
-  // Пространства Zen — в верхней полосе, как рабочие столы в Omarchy: у
-  // пространства с иконкой — иконка, без неё — номер (у активного — точка).
-  // Все ячейки одного размера. В конце — Create Space. Клик переключает.
+  // Zen spaces in the top bar, like Omarchy workspaces: a space with an icon
+  // shows the icon, without one a number (the active one gets a dot).
+  // All cells are the same size. Create Space at the end. Click to switch.
   function setupWorkspaces(box) {
     const ws = window.gZenWorkspaces;
     if (!ws || ws.privateWindowOrDisabled) {
@@ -558,7 +558,7 @@
       const create = el("button", "kit-workspace kit-workspace-create");
       create.title = "Create Space";
       create.addEventListener("click", () => {
-        // Форма создания Zen находится в панели вкладок: показываем её заранее.
+        // Zen's creation form lives in the tab panel: show it beforehand.
         KitLayout.show("tabs");
         document.getElementById("cmd_zenOpenWorkspaceCreation")?.doCommand();
       });
@@ -568,14 +568,14 @@
     window.addEventListener("ZenWorkspaceDataChanged", render);
     ws.addChangeListeners?.(render);
     render();
-    setTimeout(render, 1000); // пространства могут дочитаться после старта
+    setTimeout(render, 1000); // spaces may finish loading after startup
   }
 
-  // Create Folder — в конце раздела с папками, над линией Clear. Прямо в раздел
-  // не кладём: по числу его детей Zen считает закреплённые вкладки
-  // (перетаскивание, сессия). Кладём первой строкой в контейнер самой линии
-  // (.pinned-tabs-container-separator) — его содержимое Zen не считает; линия с
-  // Clear переносится строкой ниже (CSS).
+  // Create Folder goes at the end of the folders section, above the Clear line. Not
+  // directly into the section: Zen counts pinned tabs by its children
+  // (dragging, session). It goes as the first row in the line's own container
+  // (.pinned-tabs-container-separator), whose contents Zen doesn't count; the line
+  // with Clear wraps to the next row (CSS).
   function setupCreateFolder() {
     const add = () => {
       for (const space of document.querySelectorAll("zen-workspace")) {
@@ -592,7 +592,7 @@
       }
     };
     add();
-    // новые пространства и пересборка их разметки
+    // new spaces and rebuilt space markup
     window.addEventListener("ZenWorkspacesUIUpdate", add);
     window.addEventListener("ZenWorkspaceDataChanged", add);
     const holder = document.querySelector("zen-workspace")?.parentNode;
@@ -601,11 +601,11 @@
     }
   }
 
-  // Анимация загрузки: Zen запускает «файл летит в загрузки» к кнопке
-  // «Библиотеки» (#zen-library-button) или загрузок Firefox, а их у нас нет —
-  // файл улетал в нижний угол окна. Цель Zen выбирает в начале
-  // initializeAnimation (синхронно, приватным методом) через getElementById —
-  // на время этого вызова подставляем значок Downloads на нашем тулбаре.
+  // Download animation: Zen flies the "file into downloads" toward the
+  // Library button (#zen-library-button) or Firefox's downloads button, which we don't
+  // have, so the file flew to the bottom corner of the window. Zen picks the target at
+  // the start of initializeAnimation (synchronously, in a private method) via
+  // getElementById; for that call we substitute the Downloads icon on our toolbar.
   function setupDownloadAnimationTarget() {
     customElements.whenDefined("zen-download-animation").then(() => {
       const proto = customElements.get("zen-download-animation").prototype;
@@ -618,7 +618,7 @@
         const target = buttons.get("downloads");
         const rect = target?.getBoundingClientRect();
         if (!rect?.width) {
-          return original.apply(this, args); // значок не виден — как у Zen
+          return original.apply(this, args); // icon not visible: behave like Zen
         }
         const doc = document;
         const getById = doc.getElementById;
@@ -632,11 +632,11 @@
     });
   }
 
-  // Группа страницы — назад/вперёд/обновить, адресная строка, зум, полный
-  // экран, Split — по центру
-  // окна. Свободное место CSS делит поровну (auto-поля, см. kit-layout.uc.css),
-  // но слева от группы пространства, справа другие кнопки — ширина разная, и
-  // группа съезжала. Меряем, насколько, и компенсируем отступом полосы.
+  // Page group (back/forward/reload, URL bar, zoom, full
+  // screen, Split) is centered in the
+  // window. CSS splits free space evenly (auto margins, see kit-layout.uc.css),
+  // but spaces sit left of the group and other buttons right, with different widths,
+  // so the group drifted. We measure by how much and compensate with bar padding.
   function setupNavBalance() {
     const target = document.getElementById("nav-bar-customization-target");
     let shift = 0;
@@ -654,7 +654,7 @@
         return;
       }
       shift = next;
-      // отступ 2s с одной стороны сдвигает группу с auto-полями на s
+      // padding of 2s on one side shifts a group with auto margins by s
       target.style.setProperty("--kit-nav-pad-start", `${Math.max(0, 2 * shift)}px`);
       target.style.setProperty("--kit-nav-pad-end", `${Math.max(0, -2 * shift)}px`);
     };
@@ -665,14 +665,14 @@
     schedule();
   }
 
-  // Раскрытую адресную строку Zen ставит поверх окна с top: -2px, считая её
-  // прижатой к верху окна; меряем, где стоит полоса адреса, чтобы поправить.
+  // Zen places the expanded URL bar over the window with top: -2px, assuming it's
+  // flush with the window top; we measure where the URL bar sits to correct it.
   function setupCenter(navbar) {
     const update = () => {
       const rect = navbar.getBoundingClientRect();
       browserBox.style.setProperty("--kit-navbar-top", `${Math.round(rect.top)}px`);
-      // где стоит закрытая строка внутри полосы адреса — для мода urlbar-dropdown,
-      // чтобы раскрытая осталась ровно на месте (Zen ставит её с top: -2px)
+      // where the collapsed bar sits inside the URL bar strip, for the urlbar-dropdown mod,
+      // so the expanded one stays exactly in place (Zen places it with top: -2px)
       const box = document.getElementById("urlbar-container")?.getBoundingClientRect();
       const height = parseFloat(getComputedStyle(document.getElementById("urlbar") || navbar).getPropertyValue("--urlbar-height"));
       if (box?.height && height) {
@@ -684,10 +684,10 @@
     update();
   }
 
-  // Разделить вкладку в фокусе на две: side — right / left / top / bottom.
-  // Это split view самого Zen (gZenViewSplitter): в новую половину открывается
-  // новая вкладка, курсор — в адресной строке. Если вкладка уже в разделённом
-  // экране, делится именно её панель.
+  // Split the focused tab in two: side is right / left / top / bottom.
+  // This is Zen's own split view (gZenViewSplitter): a new tab opens in the new
+  // half, with the cursor in the URL bar. If the tab is already in a split
+  // view, its own pane is split.
   const KitSplit = {
     canSplit() {
       const splitter = window.gZenViewSplitter;
@@ -706,7 +706,7 @@
       const group = splitter._data.find(g => g.tabs.includes(current));
       const tab = gBrowser.addTrustedTab(BROWSER_NEW_TAB_URL, { relatedToCurrent: true });
       if (!group) {
-        const before = side === "left" || side === "top"; // новая половина первой
+        const before = side === "left" || side === "top"; // new half comes first
         splitter.splitTabs(
           before ? [tab, current] : [current, tab],
           side === "left" || side === "right" ? "vsep" : "hsep",
@@ -726,9 +726,9 @@
     },
   };
 
-  // Крестик в мини-меню панели разделённого экрана (появляется при наведении):
-  // закрывает вкладку этой панели. Мини-меню Zen строит в _createHeader —
-  // дополняем его, а заодно уже открытые.
+  // Close button in the split view pane's mini menu (shown on hover):
+  // closes that pane's tab. Zen builds the mini menu in _createHeader;
+  // we extend it, and also the ones already open.
   function setupSplitClose() {
     const splitter = window.gZenViewSplitter;
     if (!splitter?._createHeader) {
@@ -761,11 +761,11 @@
     }
   }
 
-  // Кнопка Split — обычная кнопка панели (CustomizableUI, двигается в Customize
-  // Toolbar); по клику — меню: Add Right / Left / Top / Bottom Split.
-  // Иконка — по мотивам Material Symbols Light «add-column-left-outline-rounded»:
-  // рамка, подсвеченная новая колонка и крупный плюс (в оригинале плюс мелкий и
-  // тонкий — в меню не читался). Повёрнута к стороне новой панели.
+  // Split button: a regular toolbar button (CustomizableUI, movable in Customize
+  // Toolbar); click opens a menu: Add Right / Left / Top / Bottom Split.
+  // Icon based on Material Symbols Light "add-column-left-outline-rounded":
+  // a frame, a highlighted new column and a large plus (the original plus is small and
+  // thin and was unreadable in the menu). Rotated toward the side of the new pane.
   const SPLIT_SIDES = [
     ["right", "Add Right Split"],
     ["left", "Add Left Split"],
@@ -774,9 +774,9 @@
     ["bottom", "Add Bottom Split"],
   ];
 
-  // Меню на macOS нативное: рисует только картинку из атрибута image, CSS
-  // (маски, фон) не видит. Цвет текста меню попадает в иконку через
-  // context-fill/context-stroke — это работает лишь для chrome://-файлов.
+  // On macOS the menu is native: it only draws the image from the image attribute
+  // and ignores CSS (masks, background). The menu text color reaches the icon via
+  // context-fill/context-stroke, which only works for chrome:// files.
   const splitIcon = side => `chrome://userchrome/content/kit-layout/icons/split-${side}.svg`;
 
   function setupSplitButtons() {
@@ -791,7 +791,7 @@
         defaultArea: CustomizableUI.AREA_NAVBAR,
       });
     } catch (e) {
-      // уже создан в другом окне
+      // already created in another window
     }
 
     const menu = document.createXULElement("menupopup");
@@ -809,8 +809,8 @@
       entry.addEventListener("command", () => KitSplit.split(side));
       menu.append(entry);
     }
-    // Проверяем выбранную группу при каждом открытии: после закрытия панели
-    // или перехода в другую вкладку пункты снова становятся доступны.
+    // Check the selected group on every open: after a pane is closed
+    // or another tab is selected, the items become available again.
     menu.addEventListener("popupshowing", () => {
       const disabled = !KitSplit.canSplit();
       for (const entry of menu.querySelectorAll("menuitem")) {
@@ -823,8 +823,8 @@
     });
     (document.getElementById("mainPopupSet") || document.documentElement).append(menu);
 
-    // onCommand у виджета в Zen не вызывается — ловим команду на окне
-    // (так кнопка работает и после того, как Customize Toolbar её пересоздаст)
+    // Zen doesn't call the widget's onCommand, so catch the command on the window
+    // (this way the button keeps working after Customize Toolbar recreates it)
     window.addEventListener(
       "command",
       event => {
@@ -835,8 +835,8 @@
       true
     );
 
-    // один раз: вместо прежних двух кнопок Split right / Split down — одна,
-    // на том же месте (сразу после полноэкранного режима)
+    // once: one button instead of the previous Split right / Split down pair,
+    // in the same place (right after the fullscreen button)
     const DONE = "kit.layout.split-menu-placed";
     if (!Services.prefs.getBoolPref(DONE, false)) {
       for (const id of ["kit-split-right", "kit-split-down"]) {
@@ -852,13 +852,13 @@
     }
   }
 
-  // Зум, полноэкранный режим и список вкладок — в строку адреса, а не отдельной
-  // строкой под ней. Один раз: дальше расположение можно менять в Customize Toolbar.
+  // Zoom, fullscreen and the tab list go into the URL bar row, not a separate
+  // row below it. Once only: after that the placement can be changed in Customize Toolbar.
   function mergeNavbarTools() {
     if (!window.CustomizableUI) {
       return;
     }
-    // список всех вкладок не нужен — вкладки и так в панели Tabs (один раз)
+    // the all-tabs list isn't needed: tabs are already in the Tabs panel (once)
     const ALLTABS = "kit.layout.alltabs-removed";
     if (!Services.prefs.getBoolPref(ALLTABS, false)) {
       try {
@@ -866,8 +866,8 @@
       } catch (e) {}
       Services.prefs.setBoolPref(ALLTABS, true);
     }
-    // кнопки назад/вперёд/обновить относятся к странице — вплотную к адресу:
-    // убираем пружину между ними и строкой (один раз)
+    // back/forward/reload belong to the page, so put them right next to the URL:
+    // remove the spring between them and the bar (once)
     const SPRING = "kit.layout.navbar-spring-removed";
     if (!Services.prefs.getBoolPref(SPRING, false)) {
       const ids = CustomizableUI.getWidgetIdsInArea(CustomizableUI.AREA_NAVBAR);
@@ -891,7 +891,7 @@
           CustomizableUI.addWidgetToArea(id, CustomizableUI.AREA_NAVBAR, ++position);
         }
       }
-      // в панели закладок остались только скрытые кнопки и нет закладок — прячем её
+      // the bookmarks bar has only hidden buttons and no bookmarks left: hide it
       const visible = CustomizableUI.getWidgetIdsInArea("PersonalToolbar").filter(
         id => !["sidebar-button", "fxms-bmb-button"].includes(id)
       );
@@ -904,12 +904,12 @@
     }
   }
 
-  // ---------------------------------------------------------------- запуск
+  // ---------------------------------------------------------------- startup
 
   function init() {
-    // Всплывающие окна сайтов (вход через Google, OAuth, оплата) — без раскладки:
-    // в них Zen прячет панели, и перенесённые кнопки окна было бы не видно —
-    // окно нечем закрыть. Оставляем их обычными окнами Zen.
+    // Site popups (Google sign-in, OAuth, payment) get no layout:
+    // Zen hides the panels in them, and the moved window buttons would be invisible,
+    // leaving no way to close the window. Keep them as regular Zen windows.
     if (document.documentElement.hasAttribute("popup-window") || !window.toolbar.visible) {
       return;
     }
@@ -922,8 +922,8 @@
     }
     state = loadState();
 
-    // Верхняя полоса: кнопки окна (светофор macOS, Zen держит их в панели
-    // вкладок — переносим, чтобы не уезжали вместе с ней) и пространства.
+    // Top bar: window buttons (macOS traffic lights; Zen keeps them in the tab
+    // panel, so we move them to keep them from sliding away with it) and spaces.
     const titlebar = el("div");
     titlebar.id = "kit-titlebar";
     const windowButtons = toolbox.querySelector(".titlebar-buttonbox-container");
@@ -933,8 +933,8 @@
     }
     const workspaces = el("div");
     workspaces.id = "kit-workspaces";
-    // навигация и адресная строка — тоже в верхней полосе, на всю её ширину:
-    // центр остаётся только сайту
+    // navigation and URL bar also go in the top bar, at its full width:
+    // the center is left to the site alone
     titlebar.append(workspaces, navbar);
     browserBox.append(titlebar);
 
@@ -959,8 +959,8 @@
     setupCenter(navbar);
     setupNavBalance();
     mergeNavbarTools();
-    // В Zen лимит зашит в MAX_TABS, отдельной настройки нет.
-    // Поднимаем его для всех способов разделения, включая меню и перетаскивание.
+    // Zen hardcodes the limit in MAX_TABS; there's no separate pref.
+    // Raise it for all ways of splitting, including the menu and drag and drop.
     if (window.gZenViewSplitter) {
       window.gZenViewSplitter.MAX_TABS = Math.max(16, window.gZenViewSplitter.MAX_TABS);
     }

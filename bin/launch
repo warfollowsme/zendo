@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Запуск Zen со всем, что нужно проекту. Его вызывает Zendo.app (bin/app).
-#   bin/launch   — проверить и открыть Zen
+# Launches Zen with everything the project needs. Called by Zendo.app (bin/app).
+#   bin/launch   — check and open Zen
 #
-# Перед запуском:
-#   - загрузчик скриптов (fx-autoconfig) на месте в программе Zen — обновление
-#     Zen его стирает, тогда кладём заново и чистим кэш скриптов;
-#   - профиль Zen подключён к этой папке — если проект переехал или ссылки
-#     сломаны, переподключаем через bin/install;
-#   - профиль собран из базы и личного слоя (bin/sync): новые личные файлы
-#     и правки user.js попадают в профиль.
-# Если Zen уже открыт, просто показывает его. Журнал — .kit/launch.log.
+# Before launching:
+#   - the script loader (fx-autoconfig) is in place in the Zen app — a Zen update
+#     erases it, so put it back and clear the script cache;
+#   - the Zen profile is connected to this folder — if the project moved or links
+#     are broken, reconnect via bin/install;
+#   - the profile is built from the base and personal layer (bin/sync): new personal files
+#     and user.js changes reach the profile.
+# If Zen is already open, just brings it forward. Log: .kit/launch.log.
 source "$(dirname "$0")/_lib.sh"
 
 mkdir -p "$KIT_STATE"
@@ -20,7 +20,7 @@ alert() {
   /usr/bin/osascript -e 'on run argv' -e 'display alert "Zendo" message (item 1 of argv) as warning' -e 'end run' "$1" >/dev/null 2>&1 || true
 }
 
-RES="$(detect_app_resources)" || { alert "Zen не найден в /Applications. Установи Zen: https://zen-browser.app"; exit 1; }
+RES="$(detect_app_resources)" || { alert "Zen not found in /Applications. Install Zen: https://zen-browser.app"; exit 1; }
 APP="$(cd "$RES/../.." && pwd -P)"
 
 if zen_running; then
@@ -29,23 +29,23 @@ if zen_running; then
   exec /usr/bin/open -a "$APP"
 fi
 
-# Загрузчик скриптов в программе Zen.
+# Script loader in the Zen app.
 if ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js" ||
    ! cmp -s "$RES/defaults/pref/config-prefs.js" "$KIT_ROOT/program/defaults/pref/config-prefs.js"; then
   info "Script loader missing in $RES (Zen updated?) — reinstalling"
   if ! "$KIT_ROOT/bin/install" --autoconfig; then
-    alert "Не удалось вернуть загрузчик скриптов в Zen (подробности — $KIT_STATE/launch.log). Zen откроется без скриптов."
+    alert "Could not restore the script loader in Zen (details: $KIT_STATE/launch.log). Zen will open without scripts."
   fi
 fi
 
-# Профиль подключён к этой папке.
+# The profile is connected to this folder.
 PROFILE="$(active_profile)" || PROFILE=""
 if [ -n "$PROFILE" ] && { [ "$(readlink "$PROFILE/chrome/userChrome.css" 2>/dev/null)" != "$KIT_CHROME_SRC/userChrome.css" ] ||
                           [ "$(cat "$KIT_STATE/profile" 2>/dev/null)" != "$PROFILE" ]; }; then
   info "Profile is not linked to $KIT_ROOT — running bin/install"
-  "$KIT_ROOT/bin/install" || alert "Не удалось подключить профиль Zen к $KIT_ROOT (подробности — $KIT_STATE/launch.log)."
+  "$KIT_ROOT/bin/install" || alert "Could not connect the Zen profile to $KIT_ROOT (details: $KIT_STATE/launch.log)."
 else
-  "$KIT_ROOT/bin/sync" || alert "Не удалось собрать профиль (подробности — $KIT_STATE/launch.log)."
+  "$KIT_ROOT/bin/sync" || alert "Could not build the profile (details: $KIT_STATE/launch.log)."
 fi
 
 exec /usr/bin/open -a "$APP"
