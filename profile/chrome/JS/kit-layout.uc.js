@@ -601,35 +601,32 @@
     }
   }
 
-  // Download animation: Zen flies the "file into downloads" toward the
-  // Library button (#zen-library-button) or Firefox's downloads button, which we don't
-  // have, so the file flew to the bottom corner of the window. Zen picks the target at
-  // the start of initializeAnimation (synchronously, in a private method) via
-  // getElementById; for that call we substitute the Downloads icon on our toolbar.
+  // Download animation: Zen flies the "file into downloads" toward the Library
+  // button (#zen-library-button) when it is inside the window, otherwise to the
+  // bottom corner. We don't show that button, so it stays invisible (see
+  // kit-layout.uc.css) and is shifted with CSS onto our Downloads icon; when
+  // the icon isn't shown, it is shifted off screen and Zen uses the corner.
+  // A download starts with a click, so re-aligning on every mousedown is enough.
   function setupDownloadAnimationTarget() {
-    customElements.whenDefined("zen-download-animation").then(() => {
-      const proto = customElements.get("zen-download-animation").prototype;
-      const original = proto.initializeAnimation;
-      if (!original || proto.kitTargetPatched) {
+    const root = document.documentElement;
+    const align = () => {
+      const library = document.getElementById("zen-library-button");
+      if (!library) {
         return;
       }
-      proto.kitTargetPatched = true;
-      proto.initializeAnimation = function (...args) {
-        const target = buttons.get("downloads");
-        const rect = target?.getBoundingClientRect();
-        if (!rect?.width) {
-          return original.apply(this, args); // icon not visible: behave like Zen
-        }
-        const doc = document;
-        const getById = doc.getElementById;
-        doc.getElementById = id => (id === "zen-library-button" ? target : getById.call(doc, id));
-        try {
-          return original.apply(this, args);
-        } finally {
-          delete doc.getElementById;
-        }
-      };
-    });
+      const from = library.getBoundingClientRect();
+      const to = buttons.get("downloads")?.getBoundingClientRect();
+      const x = parseFloat(root.style.getPropertyValue("--kit-library-shift-x")) || 0;
+      const y = parseFloat(root.style.getPropertyValue("--kit-library-shift-y")) || 0;
+      const [dx, dy] = to?.width
+        ? [to.left + to.width / 2 - (from.left + from.width / 2), to.top + to.height / 2 - (from.top + from.height / 2)]
+        : [-100000 - from.left, 0];
+      root.style.setProperty("--kit-library-shift-x", `${Math.round(x + dx)}px`);
+      root.style.setProperty("--kit-library-shift-y", `${Math.round(y + dy)}px`);
+    };
+    window.addEventListener("mousedown", align, true);
+    window.addEventListener("resize", align);
+    align();
   }
 
   // Page group (back/forward/reload, URL bar, zoom, full

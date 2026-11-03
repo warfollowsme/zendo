@@ -498,12 +498,27 @@
 /* The tab panel's bottom strip (space switcher, "+", Library)
    isn't needed: spaces and Create Space are in the top bar, Create Folder is
    under the folders, new tab is in the tab list. */
-:root[kit-layout] #zen-sidebar-foot-buttons,
-:root[kit-layout] #zen-library-button,
 :root[kit-layout] #zen-sidebar-top-buttons,
 :root[kit-layout] #zen-sidebar-splitter,
 :root[kit-layout] #kit-ai-sidebar-button {
   display: none !important;
+}
+
+/* The strip still takes no space and can't be seen or clicked, but stays in
+   the layout: Zen aims the download animation at the Library button inside it,
+   and kit-layout.uc.js shifts that button onto our Downloads icon. */
+:root[kit-layout] #zen-sidebar-foot-buttons {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: visible !important;
+}
+:root[kit-layout] #zen-library-button {
+  translate: var(--kit-library-shift-x, 0) var(--kit-library-shift-y, 0) !important;
 }
 
 /* ---------- resizing ---------- */
