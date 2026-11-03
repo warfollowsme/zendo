@@ -55,6 +55,8 @@ case "${1:-}" in
   push)
     need_remote
     if [ -n "$(g status --porcelain)" ]; then
+      g config user.email >/dev/null ||
+        die "git doesn't know who you are on this device: git config --global user.name \"Name\"; git config --global user.email \"you@example.com\""
       g add -A
       g commit -q -m "${2:-Personal settings from $(hostname -s 2>/dev/null || hostname)}"
       ok "Committed"
