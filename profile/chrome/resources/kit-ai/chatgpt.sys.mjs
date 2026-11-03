@@ -279,7 +279,8 @@ export const REPO_TOOLS = [
   },
   {
     name: "write_file",
-    description: "Create or overwrite a whole file in the repository.",
+    description:
+      "Create or overwrite a whole file in the repository. Scripts (.js, .mjs, .sh…) and files in bin/ need user approval.",
     parameters: {
       type: "object",
       properties: { path: { type: "string" }, content: { type: "string" } },
@@ -288,7 +289,8 @@ export const REPO_TOOLS = [
   },
   {
     name: "edit_file",
-    description: "Replace old_string with new_string in a file. old_string must occur exactly once.",
+    description:
+      "Replace old_string with new_string in a file. old_string must occur exactly once. Scripts (.js, .mjs, .sh…) and files in bin/ need user approval.",
     parameters: {
       type: "object",
       properties: { path: { type: "string" }, old_string: { type: "string" }, new_string: { type: "string" } },
@@ -310,6 +312,24 @@ const SAFE_COMMAND =
 
 export function commandNeedsApproval(command) {
   return !SAFE_COMMAND.test(String(command).trim());
+}
+
+// Files that run as code: scripts and everything in bin/ (run_command runs
+// bin/theme, bin/mod… without asking). Writing them needs approval, so a page
+// can't talk the agent into a privileged script unnoticed (README, Security).
+// Case-insensitive: so are macOS file names and fx-autoconfig's *.uc.js.
+const CODE_FILE = /\.(c?js|mjs|sh|py|swift)$|^bin\//i;
+
+export function fileNeedsApproval(repo, rel) {
+  let path;
+  try {
+    path = resolvePath(repo, rel, { write: true });
+  } catch (e) {
+    return false; // callRepoTool refuses this path anyway
+  }
+  const user = userDir();
+  const root = inside(path, user) ? user : repo;
+  return CODE_FILE.test(path.slice(root.length + 1));
 }
 
 function shellPath() {

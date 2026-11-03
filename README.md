@@ -64,22 +64,27 @@ Themes, mods and site styles are toggled with `bin/theme`, `bin/mod`,
 
 Zendo's browser scripts ([fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig))
 run with full browser privileges — files, cookies, everything the browser can
-reach — and the AI assistant can write them. In practice:
+reach. The AI assistant can write them, but never without asking you. In
+practice:
 
-- **Without asking**, the assistant reads tabs and pages, takes screenshots,
-  edits files in the base and your personal layer — scripts included — and
-  commits them.
-- **It asks first** before running JS on a page or in the browser window,
-  closing a tab, running shell commands outside a short list, or editing files
-  anywhere else (the full list is in [AI assistant](#ai-assistant)). "Allow all
-  in this chat" turns these questions off until the chat ends.
+- **It asks first** before writing any script (`*.js`, `*.mjs`, `*.sh`…,
+  `user.js` included) or anything in `bin/`, running JS on a page or in the
+  browser window, closing a tab, running shell commands outside a short list,
+  or editing files anywhere else (the full list is in
+  [AI assistant](#ai-assistant)). The question shows the file and what goes
+  into it. "Allow all in this chat" turns these questions off until the chat
+  ends.
+- **Without asking**, it reads tabs and pages, takes screenshots, edits CSS and
+  other files that don't run as code (themes, mods, site styles, `AGENTS.md`)
+  in the base and your personal layer, and commits them. It can't edit `.git/`
+  at all.
 - **Browser scripts and `user.js` take effect only after a restart** (↻ in the
-  panel or the next launch). Before that, `git -C ~/.config/zendo log -p` shows
-  exactly what was written. Site scripts (`sites/<name>.js`) run with page
+  panel or the next launch). Site scripts (`sites/<name>.js`) run with page
   privileges in a sandbox, on pages opened after the change.
+  `git -C ~/.config/zendo log -p` shows everything that was written.
 - **A page can try to talk the agent into things** (prompt injection). The
   assistant is told to treat page text as data, not instructions, but that is
-  not a guarantee: read script commits before you restart, and don't use
+  not a guarantee: read what a script does before you allow it, and don't use
   "Allow all" while working with pages you don't trust.
 - With Claude Code, the browser tools are served over MCP on 127.0.0.1 only,
   behind a one-time token, and the browser itself doesn't go online. With
@@ -213,7 +218,9 @@ Besides files, the assistant has browser tools:
 | `run_browser_js` | JS in the browser window — live edits until a restart | yes |
 | `close_tab` | close a tab | yes |
 
-Shell commands other than `bin/check|status|sync|theme|mod|site`,
+Writing scripts (`*.js`, `*.mjs`, `*.cjs`, `*.sh`, `*.py`, `*.swift`) or
+anything in `bin/`, shell commands other than
+`bin/check|status|sync|theme|mod|site`,
 `git [-C <folder>] status|diff|log|add|commit`, `ls` and `grep`, as well as
 edits to files outside the base and the personal layer, also require
 confirmation in the panel. You can click "Allow all in this chat".
