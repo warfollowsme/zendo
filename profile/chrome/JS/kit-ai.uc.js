@@ -15,7 +15,7 @@
   const HTML = "http://www.w3.org/1999/xhtml";
   const { Subprocess } = ChromeUtils.importESModule("resource://gre/modules/Subprocess.sys.mjs");
   const PREF_RESUME = "kit.ai.resume-session"; // id of the chat to open after a restart
-  const PREF_PROVIDER = "kit.ai.provider"; // "claude" | "chatgpt" | "anthropic" | "openai"
+  const PREF_PROVIDER = "kit.ai.provider"; // "claude" | "chatgpt" | "anthropic" | "openai" | "compatible"
   const CHATGPT_URL = "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
   const API_URL = "chrome://userchrome/content/kit-ai/api.sys.mjs";
 
@@ -634,26 +634,36 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     chatgpt: { name: "ChatGPT", icon: ICONS + "openai.svg" },
     anthropic: { name: "Anthropic API", icon: ICONS + "claude.svg" },
     openai: { name: "OpenAI API", icon: ICONS + "openai.svg" },
+    // OpenRouter, DeepSeek, Ollama…: named after the connected server
+    compatible: {
+      get name() {
+        return ChromeUtils.importESModule(API_URL).compatibleName();
+      },
+      icon: ICONS + "api.svg",
+    },
   };
-  const PROVIDER_ORDER = ["claude", "chatgpt", "anthropic", "openai"];
+  const PROVIDER_ORDER = ["claude", "chatgpt", "anthropic", "openai", "compatible"];
   // "" — default model / effort
   const MODEL_PREF = {
     claude: "kit.ai.model",
     chatgpt: "kit.ai.openai-model",
     anthropic: "kit.ai.anthropic-model",
     openai: "kit.ai.openai-api-model",
+    compatible: "kit.ai.compatible-model",
   };
   const EFFORT_PREF = {
     claude: "kit.ai.claude-effort",
     chatgpt: "kit.ai.openai-effort",
     anthropic: "kit.ai.anthropic-effort",
     openai: "kit.ai.openai-api-effort",
+    compatible: "kit.ai.compatible-effort",
   };
   const EFFORTS = {
     claude: ["low", "medium", "high", "xhigh", "max"],
     chatgpt: ["low", "medium", "high"],
     anthropic: ["low", "medium", "high", "xhigh", "max"],
     openai: ["low", "medium", "high"],
+    compatible: ["low", "medium", "high"],
   };
   // Claude Code accepts aliases (opus → the latest Opus). The version it
   // actually ran is reported in the init event — the panel stores it in
@@ -1121,12 +1131,12 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       };
       const form = this.apiForm(say);
       form.hidden = true;
-      const apiOption = option("anthropic", "API key", "Anthropic or OpenAI — pay per use", () => {
+      const apiOption = option("anthropic", "API key", "Anthropic, OpenAI, OpenRouter, DeepSeek… — pay per use", () => {
         form.hidden = !form.hidden;
         form.querySelector("input")?.focus();
       });
       apiOption.querySelector(".kit-ai-icon").style.setProperty("--kit-icon", `url("${ICONS}api.svg")`);
-      if (this.accounts.anthropic || this.accounts.openai) {
+      if (this.accounts.anthropic || this.accounts.openai || this.accounts.compatible) {
         apiOption.append(el("span", "kit-ai-connect-done", "Connected"));
       }
       box.append(
@@ -1147,36 +1157,80 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       const form = el("div", "kit-ai-api-form");
       let provider = "anthropic";
       const tabs = el("div", "kit-ai-segment");
+      // OpenAI-compatible server: a preset or your own address, a model (optional)
+      const api = this.api();
+      const server = el("div", "kit-ai-api-server");
+      const preset = el("select", "kit-select");
+      for (const p of api.COMPATIBLE_PRESETS) {
+        const o = el("option", null, p.name);
+        o.value = p.url;
+        preset.append(o);
+      }
+      const custom = el("option", null, "Other address…");
+      custom.value = "";
+      preset.append(custom);
+      const url = el("input", "kit-ai-key");
+      url.placeholder = "https://…/v1";
+      const model = el("input", "kit-ai-key");
+      model.placeholder = "Model (optional — or pick it later from the list)";
+      const syncPreset = () => {
+        url.hidden = preset.value !== "";
+        input.placeholder = /localhost/.test(preset.value) ? "API key (not needed for a local server)" : "Paste an API key";
+      };
+      preset.addEventListener("change", syncPreset);
+      server.append(preset, url, model);
       const pick = p => {
         provider = p;
         for (const b of tabs.children) {
           b.toggleAttribute("selected", b.dataset.provider === p);
         }
+        server.hidden = p !== "compatible";
+        if (p === "compatible") {
+          syncPreset();
+        } else {
+          input.placeholder = "Paste an API key: sk-…";
+        }
       };
       for (const [p, label] of [
         ["anthropic", "Anthropic"],
         ["openai", "OpenAI"],
+        ["compatible", "Other"],
       ]) {
         const b = el("button", "kit-button", label);
         b.dataset.provider = p;
+        b.title = p === "compatible" ? "OpenAI-compatible: OpenRouter, DeepSeek, Groq, Ollama, LM Studio…" : "";
         b.addEventListener("click", () => pick(p));
         tabs.append(b);
       }
       const input = el("input", "kit-ai-key");
       input.type = "password";
-      input.placeholder = "Paste an API key: sk-…";
-      input.addEventListener("input", () => input.value.trim().length > 6 && pick(this.api().guessProvider(input.value)));
+      input.addEventListener("input", () => {
+        const key = input.value.trim();
+        if (/^sk-or-/.test(key)) {
+          preset.value = "https://openrouter.ai/api/v1"; // an OpenRouter key
+          pick("compatible");
+        } else if (key.length > 6 && provider !== "compatible") {
+          pick(api.guessProvider(key));
+        }
+      });
       const connect = this.button("Connect", "", async () => {
         const key = input.value.trim();
-        if (!key) {
+        const address = provider === "compatible" ? (preset.value || url.value).trim() : "";
+        if (provider === "compatible" ? !address : !key) {
           return;
         }
         connect.disabled = true;
-        say("Checking the key…");
+        say(provider === "compatible" ? `Checking ${api.compatibleName(address)}…` : "Checking the key…");
         try {
-          const api = this.api();
-          await api.models(window, provider, key);
-          await api.saveKey(provider, key);
+          if (provider === "compatible") {
+            await api.models(window, provider, key || "none", address);
+            await api.saveCompatible(address, key);
+            Services.prefs.setStringPref(MODEL_PREF.compatible, model.value.trim());
+            delete this.modelLists.compatible;
+          } else {
+            await api.models(window, provider, key);
+            await api.saveKey(provider, key);
+          }
           input.value = "";
           say("");
           await this.connectedTo(provider);
@@ -1186,9 +1240,11 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           connect.disabled = false;
         }
       });
-      input.addEventListener("keydown", e => e.key === "Enter" && connect.click());
+      for (const field of [input, url, model]) {
+        field.addEventListener("keydown", e => e.key === "Enter" && connect.click());
+      }
       pick(provider);
-      form.append(tabs, input, connect, el("div", "kit-ai-row-hint", "The key is stored encrypted in the browser’s password manager."));
+      form.append(tabs, server, input, connect, el("div", "kit-ai-row-hint", "The key is stored encrypted in the browser’s password manager."));
       return form;
     }
 
@@ -1299,7 +1355,12 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         } else if (provider === "chatgpt") {
           list = await this.chatgpt().models(window);
         } else {
-          list = (await this.api().models(window, provider)).slice(0, 30);
+          list = await this.api().models(window, provider);
+          // the newest 30; an OpenAI-compatible server keeps them all (OpenRouter
+          // has hundreds, and any of them may be the one)
+          if (provider !== "compatible") {
+            list = list.slice(0, 30);
+          }
         }
         this.modelLists[provider] = list;
         this.updateModel();
@@ -1324,7 +1385,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       if (provider === "anthropic") {
         return this.api().API_PROVIDERS.anthropic.defaultModel;
       }
-      if (provider === "chatgpt" || provider === "openai") {
+      if (provider === "chatgpt" || provider === "openai" || provider === "compatible") {
         return this.modelLists[provider]?.[0]?.id || "";
       }
       return "";
@@ -1519,6 +1580,25 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         const list = paths.length ? `\n\nAttached files (read them with the Read tool):\n${paths.map(x => "- " + x).join("\n")}` : "";
         blocks.push({ type: "text", text: text + list });
         return blocks;
+      }
+      if (p === "compatible") {
+        // Chat Completions: text and images; PDFs and other files go in as text
+        const parts = [];
+        for (const f of files) {
+          if (f.preview) {
+            parts.push({ type: "image_url", image_url: { url: f.preview } });
+          } else {
+            parts.push({
+              type: "text",
+              text:
+                f.text !== undefined
+                  ? `Attached file ${f.name}:\n\`\`\`\n${f.text}\n\`\`\``
+                  : `Attached file ${f.name} (${f.mime}, ${f.size} bytes): binary content, not readable here.`,
+            });
+          }
+        }
+        parts.push({ type: "text", text });
+        return parts;
       }
       const anthropic = p === "anthropic";
       const parts = [];
@@ -1890,7 +1970,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         AgentClass = chatgpt.ChatGPTAgent;
       } else {
         const api = this.api();
-        AgentClass = p === "openai" ? api.OpenAIAgent : api.AnthropicAgent;
+        AgentClass = { openai: api.OpenAIAgent, compatible: api.CompatibleAgent }[p] || api.AnthropicAgent;
       }
       await this.loadModels(p);
       const model = this.modelId(p) || this.defaultModel(p);

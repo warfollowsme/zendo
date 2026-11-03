@@ -169,6 +169,23 @@
     display: none;
   }
 
+  /* OpenAI-compatible: server, its address, model */
+  & .kit-ai-api-server {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    &[hidden],
+    & > [hidden] {
+      display: none;
+    }
+
+    & > .kit-select {
+      width: 100%;
+      margin: 0;
+    }
+  }
+
   & > .kit-button {
     align-self: flex-start;
   }

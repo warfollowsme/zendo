@@ -1,9 +1,9 @@
-// AI assistant: connecting with an API key — Anthropic (Claude) or OpenAI.
+// AI assistant: connecting with an API key — Anthropic (Claude), OpenAI, or any
+// OpenAI-compatible server (OpenRouter, DeepSeek, Groq, Ollama, LM Studio…).
 // Imported from JS/kit-ai.uc.js as chrome://userchrome/content/kit-ai/api.sys.mjs.
 //
 // The key is stored encrypted in the password manager (about:logins → chrome://kit-ai, "API").
-// Requests go directly to api.anthropic.com / api.openai.com
-// and are billed at API rates, not by subscription.
+// Requests go directly to the provider and are billed at API rates, not by subscription.
 
 import { ChatGPTAgent } from "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
 
@@ -12,9 +12,47 @@ const LOGIN_REALM = "API";
 const MAX_STEPS = 60;
 const FALLBACK_MODELS = /^claude-(fable-5-1|opus-5-5|opus-5|sonnet-5-5)$/;
 
+// OpenAI-compatible: one server at a time, its address in kit.ai.compatible-url.
+const PREF_COMPATIBLE_URL = "kit.ai.compatible-url";
+const NO_KEY = "none"; // local servers (Ollama, LM Studio) need no key
+
+export const COMPATIBLE_PRESETS = [
+  { name: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+  { name: "DeepSeek", url: "https://api.deepseek.com" },
+  { name: "Groq", url: "https://api.groq.com/openai/v1" },
+  { name: "Ollama", url: "http://localhost:11434/v1" },
+  { name: "LM Studio", url: "http://localhost:1234/v1" },
+];
+
+export function compatibleURL() {
+  return Services.prefs.getStringPref(PREF_COMPATIBLE_URL, "").trim().replace(/\/+$/, "");
+}
+
+// The server's name for the UI: a preset's name or the host.
+export function compatibleName(url = compatibleURL()) {
+  const preset = COMPATIBLE_PRESETS.find(p => p.url === url);
+  if (preset) {
+    return preset.name;
+  }
+  try {
+    return new URL(url).host;
+  } catch (e) {
+    return "OpenAI-compatible";
+  }
+}
+
 export const API_PROVIDERS = {
   anthropic: { name: "Anthropic API", url: "https://api.anthropic.com/v1", defaultModel: "claude-opus-5-5" },
   openai: { name: "OpenAI API", url: "https://api.openai.com/v1", defaultModel: "" },
+  compatible: {
+    get name() {
+      return compatibleName();
+    },
+    get url() {
+      return compatibleURL();
+    },
+    defaultModel: "",
+  },
 };
 
 // Anthropic keys start with sk-ant-, other sk-… keys are OpenAI.
@@ -30,7 +68,9 @@ async function findLogins(provider) {
 }
 
 export async function connected() {
-  return (await findLogins()).map(l => l.username).filter(p => API_PROVIDERS[p]);
+  return (await findLogins())
+    .map(l => l.username)
+    .filter(p => API_PROVIDERS[p] && (p !== "compatible" || compatibleURL()));
 }
 
 async function apiKey(provider) {
@@ -54,9 +94,30 @@ export async function removeKey(provider) {
     await Services.logins.removeLoginAsync(login);
   }
   delete cachedModels[provider];
+  if (provider === "compatible") {
+    Services.prefs.clearUserPref(PREF_COMPATIBLE_URL);
+  }
 }
 
-function headers(provider, key) {
+// An OpenAI-compatible server: its address and key (empty — no key needed).
+export async function saveCompatible(url, key) {
+  Services.prefs.setStringPref(PREF_COMPATIBLE_URL, url.trim().replace(/\/+$/, ""));
+  await saveKey("compatible", key.trim() || NO_KEY);
+}
+
+function headers(provider, key, url = compatibleURL()) {
+  if (provider === "compatible") {
+    const h = { "content-type": "application/json" };
+    if (key && key !== NO_KEY) {
+      h.Authorization = `Bearer ${key}`;
+    }
+    if (/openrouter\.ai/.test(url)) {
+      // OpenRouter shows the app in its stats; optional
+      h["HTTP-Referer"] = "https://github.com/warfollowsme/zendo";
+      h["X-Title"] = "Zendo";
+    }
+    return h;
+  }
   if (provider === "anthropic") {
     return {
       "x-api-key": key,
@@ -84,19 +145,36 @@ async function errorText(response) {
 const cachedModels = {};
 
 // The key's model list; also checks that the key works (throws if not).
-export async function models(win, provider, key) {
+// url — for an OpenAI-compatible server that isn't saved yet.
+export async function models(win, provider, key, url) {
   if (!key && cachedModels[provider]) {
     return cachedModels[provider];
   }
-  const response = await win.fetch(`${API_PROVIDERS[provider].url}/models?limit=200`, {
-    headers: headers(provider, key || (await apiKey(provider))),
-    credentials: "omit",
-  });
+  const base = (url || API_PROVIDERS[provider].url).trim().replace(/\/+$/, "");
+  const name = provider === "compatible" ? compatibleName(base) : API_PROVIDERS[provider].name;
+  let response;
+  try {
+    response = await win.fetch(`${base}/models?limit=200`, {
+      headers: headers(provider, key || (await apiKey(provider)), base),
+      credentials: "omit",
+    });
+  } catch (e) {
+    throw new Error(`${name}: no answer from ${base} (${e.message || e})`);
+  }
   if (!response.ok) {
-    throw new Error(`${API_PROVIDERS[provider].name} (${response.status}): ${await errorText(response)}`);
+    throw new Error(`${name} (${response.status}): ${await errorText(response)}`);
   }
   const json = await response.json();
-  let list = (json.data || []).map(m => ({ id: m.id, name: m.display_name || m.id, created: m.created_at || m.created || 0 }));
+  let list = (json.data || json.models || []).map(m => ({
+    id: m.id,
+    name: m.display_name || m.name || m.id,
+    created: m.created_at || m.created || 0,
+    tools: m.supported_parameters ? m.supported_parameters.includes("tools") : undefined,
+  }));
+  if (provider === "compatible") {
+    // the assistant works through tools: hide models that say they can't call them (OpenRouter tells)
+    list = list.filter(m => m.tools !== false).sort((a, b) => b.created - a.created || a.id.localeCompare(b.id));
+  }
   if (provider === "openai") {
     // chat models only: no embeddings, speech, images, etc.
     list = list
@@ -394,5 +472,248 @@ export class AnthropicAgent {
       }
     }
     return calls;
+  }
+}
+
+// ---------------------------------------------------------------- OpenAI-compatible
+
+// Chat Completions loop (POST {url}/chat/completions), the format of OpenRouter,
+// DeepSeek, Groq, Ollama, LM Studio…: model reply (stream) → tool calls → a
+// "tool" message for each → … Same interface as ChatGPTAgent. The model must
+// support tools (function calling): the assistant does everything through them.
+export class CompatibleAgent {
+  constructor({ win, instructions, tools, callTool, ui, model, effort, saved }) {
+    this.win = win;
+    this.instructions = instructions;
+    this.tools = tools;
+    this.callTool = callTool;
+    this.ui = ui;
+    this.model = saved?.model || model;
+    this.effort = effort;
+    this.history = saved?.history || [];
+    this.controller = null;
+  }
+
+  get label() {
+    return compatibleName();
+  }
+
+  snapshot() {
+    return { model: this.model, history: this.history };
+  }
+
+  stop() {
+    this.stopped = true;
+    this.controller?.abort();
+  }
+
+  // Every tool call needs a "tool" message after it, or the next request is
+  // rejected. After a stop mid-turn, add the missing ones.
+  repairHistory() {
+    const index = this.history.findLastIndex(m => m.role === "assistant");
+    const calls = this.history[index]?.tool_calls;
+    if (!calls) {
+      return;
+    }
+    const answered = new Set(this.history.slice(index + 1).filter(m => m.role === "tool").map(m => m.tool_call_id));
+    for (const call of calls) {
+      if (!answered.has(call.id)) {
+        this.history.push({ role: "tool", tool_call_id: call.id, content: "Interrupted" });
+      }
+    }
+  }
+
+  // content — a string or ready parts (text, image_url)
+  async send(content) {
+    this.stopped = false;
+    this.repairHistory();
+    this.history.push({ role: "user", content });
+    for (let step = 0; step < MAX_STEPS; step++) {
+      const calls = await this.respond();
+      if (!calls.length || this.stopped) {
+        return;
+      }
+      // a tool message holds text only, so images (screenshots) follow in a user message
+      const images = [];
+      for (const call of calls) {
+        this.history.push(
+          this.stopped
+            ? { role: "tool", tool_call_id: call.id, content: "Stopped by the user" }
+            : await this.runTool(call, images)
+        );
+      }
+      if (images.length) {
+        this.history.push({ role: "user", content: [{ type: "text", text: "Images returned by the tools above:" }, ...images] });
+      }
+      if (this.stopped) {
+        return;
+      }
+    }
+    throw new Error(`Too many steps in a row (${MAX_STEPS}) — stopped`);
+  }
+
+  async runTool(call, images) {
+    this.ui.tool(call.id, call.name, call.input || {});
+    if (call.badInput) {
+      this.ui.toolDone(call.id, true);
+      return { role: "tool", tool_call_id: call.id, content: "INVALID_JSON: the tool arguments were not valid JSON" };
+    }
+    try {
+      const content = await this.callTool(call.name, call.input || {});
+      this.ui.toolDone(call.id, false);
+      const texts = content.map(c => {
+        if (c.type === "image") {
+          images.push({ type: "image_url", image_url: { url: `data:${c.mimeType};base64,${c.data}` } });
+          return "(image: see the next message)";
+        }
+        return c.text || "(empty)";
+      });
+      return { role: "tool", tool_call_id: call.id, content: texts.join("\n") };
+    } catch (e) {
+      this.ui.toolDone(call.id, true);
+      return { role: "tool", tool_call_id: call.id, content: `Error: ${e?.message || e}` };
+    }
+  }
+
+  async request(plain) {
+    const body = {
+      model: this.model,
+      stream: true,
+      messages: [{ role: "system", content: this.instructions }, ...this.history],
+      tools: this.tools.map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } })),
+      tool_choice: "auto",
+    };
+    if (this.effort && !plain) {
+      body.reasoning_effort = this.effort;
+    }
+    const [login] = await findLogins("compatible");
+    this.controller = new this.win.AbortController();
+    return this.win.fetch(`${compatibleURL()}/chat/completions`, {
+      method: "POST",
+      headers: headers("compatible", login?.password),
+      credentials: "omit",
+      signal: this.controller.signal,
+      body: JSON.stringify(body),
+    });
+  }
+
+  // One model reply: text and tool calls arrive in pieces (deltas) and are put together.
+  async respond() {
+    let response;
+    try {
+      response = await this.request();
+      if (response.status === 400 && this.effort) {
+        // a model without reasoning may not accept reasoning_effort — retry without it
+        const message = await errorText(response.clone());
+        if (/reasoning/i.test(message)) {
+          response = await this.request(true);
+        }
+      }
+    } catch (e) {
+      if (this.stopped) {
+        return [];
+      }
+      throw e;
+    }
+    if (!response.ok) {
+      const message = await errorText(response);
+      if (response.status === 429) {
+        throw new Error(`${this.label} rate limit: ${message}`);
+      }
+      if (/tool|function/i.test(message) && response.status < 500) {
+        throw new Error(`${this.model} on ${this.label} can't call tools (function calling), and the assistant needs them — pick another model. (${message})`);
+      }
+      throw new Error(`${this.label} responded ${response.status}: ${message}`);
+    }
+
+    let text = "";
+    let textOpen = false;
+    let finish = null;
+    const calls = [];
+    const handle = event => {
+      if (event.error) {
+        throw new Error(event.error.message || `${this.label} error`);
+      }
+      const choice = event.choices?.[0];
+      const delta = choice?.delta || {};
+      if (delta.reasoning || delta.reasoning_content) {
+        this.ui.status("thinking…");
+      }
+      if (delta.content) {
+        if (!textOpen) {
+          this.ui.textStart();
+          textOpen = true;
+        }
+        text += delta.content;
+        this.ui.textDelta(delta.content);
+      }
+      for (const piece of delta.tool_calls || []) {
+        const slot = (calls[piece.index ?? calls.length] ||= { id: "", name: "", args: "" });
+        slot.id ||= piece.id || "";
+        slot.name += piece.function?.name || "";
+        slot.args += piece.function?.arguments || "";
+      }
+      finish = choice?.finish_reason || finish;
+    };
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        let end;
+        while ((end = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, end).trim();
+          buffer = buffer.slice(end + 1);
+          // ": OPENROUTER PROCESSING" and other comments, empty lines between events
+          if (line.startsWith("data:")) {
+            const data = line.slice(5).trim();
+            if (data && data !== "[DONE]") {
+              handle(JSON.parse(data));
+            }
+          }
+        }
+        if (done) {
+          break;
+        }
+      }
+    } catch (e) {
+      if (!this.stopped) {
+        throw e;
+      }
+    } finally {
+      if (textOpen) {
+        this.ui.textEnd();
+      }
+      this.ui.status(this.model);
+    }
+
+    const toolCalls = calls.filter(Boolean).map((c, i) => {
+      const call = { id: c.id || `call_${Date.now()}_${i}`, name: c.name, input: {} };
+      try {
+        call.input = c.args ? JSON.parse(c.args) : {};
+      } catch (e) {
+        call.badInput = true;
+      }
+      // the call may have been cut off midway — don't run it
+      if (finish === "length") {
+        call.badInput = true;
+      }
+      return { call, raw: c.args || "{}" };
+    });
+    if (text || toolCalls.length) {
+      const message = { role: "assistant", content: text || null };
+      if (toolCalls.length) {
+        message.tool_calls = toolCalls.map(({ call, raw }) => ({
+          id: call.id,
+          type: "function",
+          function: { name: call.name, arguments: raw },
+        }));
+      }
+      this.history.push(message);
+    }
+    return this.stopped ? [] : toolCalls.map(t => t.call);
   }
 }

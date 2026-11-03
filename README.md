@@ -40,8 +40,9 @@ From then on, start Zen with Zendo: a Zen update wipes the script loader from
 the program, and Zendo puts it back before every launch.
 
 The AI assistant needs [Claude Code](https://claude.com/claude-code), a
-ChatGPT account or an Anthropic / OpenAI API key — the panel will ask which one
-to connect.
+ChatGPT account, or an API key: Anthropic, OpenAI or any OpenAI-compatible
+service (OpenRouter, DeepSeek, Groq, a local Ollama…) — the panel will ask which
+one to connect.
 
 ### macOS
 
@@ -258,6 +259,12 @@ connect several at once:
   The key is verified by requesting the model list. Claude models over the API
   use `fallbacks: "default"`: if the safety filter rejects a request, the API
   retries it on a suitable model.
+- **OpenAI-compatible** ("Other" in the API key form) — OpenRouter, DeepSeek,
+  Groq, Ollama, LM Studio or your own address, with the Chat Completions API.
+  The key is optional for a local server; the model can be typed in or picked
+  from the server's list later. The model must support tools (function
+  calling) — the assistant works through them; OpenRouter models without tools
+  are hidden from the list. Weaker models make more mistakes when editing files.
 
 Tokens and keys are stored in the password manager (about:logins →
 `chrome://kit-ai`). ChatGPT and the API edit files with their own tools
@@ -300,7 +307,7 @@ cache cleared, and the conversation continues where it left off.
 How it works: `JS/kit-ai.uc.js` (panel and tools),
 `JS/kit-ai.sys.mjs` (MCP server and launching Claude Code),
 `resources/kit-ai/chatgpt.sys.mjs` (ChatGPT sign-in and the agent loop),
-`resources/kit-ai/api.sys.mjs` (Anthropic and OpenAI keys, their agents),
+`resources/kit-ai/api.sys.mjs` (API keys: Anthropic, OpenAI, OpenAI-compatible, their agents),
 `CSS/kit-ai.uc.css` (panel appearance). Browser tools are given to Claude Code
 over MCP through a local server: it listens only on 127.0.0.1 on a random port
 and accepts only a one-time token. With Claude Code the browser doesn't go
