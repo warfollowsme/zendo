@@ -1,7 +1,7 @@
 // Zendo icon: three rings like Zen's, but in brush and ink — ensō on rice paper.
 // Rebuild (the drawing is deterministic; only the parameters below change it):
 //   swiftc -O assets/make-icon.swift -o /tmp/zendo-icon && /tmp/zendo-icon assets
-// Creates assets/zendo.png (1024×1024) and assets/Zendo.icns (used by bin/app).
+// Creates assets/zendo.png (1024×1024), zendo-256.png (README) and Zendo.icns (used by bin/app).
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -152,6 +152,10 @@ func save(_ image: CGImage, _ path: String) {
 let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "."
 let master = ctx.makeImage()!
 save(master, "\(out)/zendo.png")
+let readme = bitmap(256, 256) // the README header
+readme.interpolationQuality = .high
+readme.draw(master, in: CGRect(x: 0, y: 0, width: 256, height: 256))
+save(readme.makeImage()!, "\(out)/zendo-256.png")
 
 let iconset = NSTemporaryDirectory() + "Zendo.iconset"
 try? FileManager.default.removeItem(atPath: iconset)

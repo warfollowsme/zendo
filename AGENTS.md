@@ -49,7 +49,7 @@ zendo/                        base
 ├── README.md                 for humans: installation and commands
 ├── install.sh                one-command install (curl … | bash)
 ├── defaults/user/            personal layer skeleton: bin/sync copies what's missing
-├── assets/                   Zendo icon: make-icon.swift draws zendo.png and Zendo.icns
+├── assets/                   Zendo icon: make-icon.swift draws zendo.png, zendo-256.png (README), Zendo.icns
 ├── bin/                      commands (bash 3.2 as on macOS; also Linux)
 │   ├── install / uninstall   connect / disconnect the project from the Zen profile
 │   ├── sync                  assemble the profile from the base and personal layer
