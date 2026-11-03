@@ -882,9 +882,11 @@
     }
     try {
       let position = CustomizableUI.getPlacementOfWidget("urlbar-container")?.position ?? -1;
+      // from the bookmarks bar; zoom and full screen also when they aren't on any
+      // toolbar (a fresh profile keeps them in the customization palette)
       for (const id of ["zoom-controls", "fullscreen-button", "alltabs-button"]) {
         const place = CustomizableUI.getPlacementOfWidget(id);
-        if (place?.area === "PersonalToolbar") {
+        if (place?.area === "PersonalToolbar" || (!place && id !== "alltabs-button")) {
           CustomizableUI.addWidgetToArea(id, CustomizableUI.AREA_NAVBAR, ++position);
         }
       }
