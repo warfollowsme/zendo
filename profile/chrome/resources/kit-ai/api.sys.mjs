@@ -100,9 +100,10 @@ export async function removeKey(provider) {
 }
 
 // An OpenAI-compatible server: its address and key (empty — no key needed).
+// The address goes after the key: saving the key removes the old one, and with it the address.
 export async function saveCompatible(url, key) {
-  Services.prefs.setStringPref(PREF_COMPATIBLE_URL, url.trim().replace(/\/+$/, ""));
   await saveKey("compatible", key.trim() || NO_KEY);
+  Services.prefs.setStringPref(PREF_COMPATIBLE_URL, url.trim().replace(/\/+$/, ""));
 }
 
 function headers(provider, key, url = compatibleURL()) {
