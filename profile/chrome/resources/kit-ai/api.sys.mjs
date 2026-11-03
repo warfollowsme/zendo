@@ -180,9 +180,12 @@ export async function models(win, provider, key, url) {
     // Hide what can't work as the assistant, when the server tells (OpenRouter does):
     // no tools (it does everything through them), a context under 128k (instructions,
     // AGENTS.md and page text alone take tens of thousands of tokens), batch
-    // variants (no live replies), models about to be removed.
+    // variants (no live replies), models about to be removed, and ones older than
+    // half a year — newer generations replace them (the chosen model stays in the
+    // menu anyway, see kit-ai.uc.js).
+    const halfYear = Date.now() / 1000 - 183 * 86400;
     list = list
-      .filter(m => m.tools !== false && !(m.context < 128000) && !m.batch && !m.leaving)
+      .filter(m => m.tools !== false && !(m.context < 128000) && !m.batch && !m.leaving && !(m.created && m.created < halfYear))
       .sort((a, b) => b.created - a.created || a.id.localeCompare(b.id));
   }
   if (provider === "openai") {

@@ -1440,6 +1440,11 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           this.loadModels(p);
           continue;
         }
+        // the chosen model stays even when the server's list no longer shows it
+        const chosen = this.modelId(p);
+        if (chosen && !list.some(m => m.id === chosen)) {
+          this.menuItem(popup, chosen, () => this.selectModel(p, chosen));
+        }
         for (const m of list) {
           this.menuItem(popup, m.name, () => this.selectModel(p, m.id));
         }
