@@ -25,8 +25,17 @@ profile), and git. Then run in a terminal:
 curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh | bash
 ```
 
-The script downloads Zendo to `~/.local/share/zendo`, connects it to your Zen
-profile, installs the script loader into Zen and adds the **Zendo** launcher.
+The script asks three things (Enter keeps the default):
+
+- where to put Zendo, the base — `~/.local/share/zendo`;
+- where to keep your personal layer — `~/.config/zendo`;
+- the repository of your personal layer, if you already have one (from another
+  device); Enter starts a new one.
+
+Then it downloads Zendo, connects it to your Zen profile, installs the script
+loader into Zen and adds the **Zendo** launcher. To skip the questions, set the
+answers in variables (`ZENDO_HOME`, `ZENDO_USER`, `ZENDO_USER_REPO`) or
+`ZENDO_YES=1` for all defaults.
 From then on, start Zen with Zendo: a Zen update wipes the script loader from
 the program, and Zendo puts it back before every launch.
 
@@ -127,12 +136,9 @@ gh repo create zendo-personal --private          # once, on the first device
 ~/.local/share/zendo/bin/personal push
 ```
 
-On a new device, install with your layer:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh |
-  ZENDO_USER_REPO=https://github.com/<you>/zendo-personal.git bash
-```
+On a new device, run the usual install command and give the installer your
+repository when it asks (or set `ZENDO_USER_REPO=<url>`) — your layer is cloned
+before Zendo connects to the profile
 
 (a private repository needs git access on that device: `gh auth login` or an SSH
 key). After that, `bin/personal push` sends your changes and `bin/personal pull`

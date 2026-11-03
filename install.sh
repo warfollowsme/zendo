@@ -9,24 +9,46 @@
 # 4. Makes the Zendo launcher (bin/app): Zendo.app on macOS, a menu entry on Linux,
 #    and starts it.
 #
-# Variables: ZENDO_HOME — where to download, ZENDO_USER — personal layer
-# (default ~/.config/zendo), ZENDO_REPO — where to download from,
-# ZENDO_USER_REPO — your personal layer's repository, cloned into ZENDO_USER
-# (moving to another device; see bin/personal).
+# In a terminal it asks where to put the base and the personal layer, and for your
+# personal layer's repository (Enter keeps the default). The same can be given
+# in variables, then that question is skipped: ZENDO_HOME — the base
+# (~/.local/share/zendo), ZENDO_USER — the personal layer (~/.config/zendo),
+# ZENDO_USER_REPO — its repository, cloned into ZENDO_USER (moving to another
+# device; see bin/personal). ZENDO_YES=1 — no questions, defaults everywhere.
+# ZENDO_REPO — where to download Zendo from.
 set -euo pipefail
 
 REPO="${ZENDO_REPO:-https://github.com/warfollowsme/zendo.git}"
-DEST="${ZENDO_HOME:-$HOME/.local/share/zendo}"
 
 say()  { printf '\033[1m%s\033[0m\n' "$*"; }
 die()  { printf '\033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
+# A terminal to ask in (curl … | bash reads the script from stdin, so questions go to /dev/tty)
+has_tty() { [ -z "${ZENDO_YES:-}" ] && (: < /dev/tty) 2>/dev/null; }
 ask()  { # ask "Question" — yes if answered y; no without a terminal
   local answer=""
-  [ -r /dev/tty ] || return 1
+  has_tty || return 1
   printf '%s [y/N] ' "$1" > /dev/tty
   read -r answer < /dev/tty || true
   case "$answer" in y|Y|yes|д|Д|да) return 0 ;; *) return 1 ;; esac
 }
+prompt() { # prompt "Question" DEFAULT — the answer; Enter or no terminal — DEFAULT
+  local answer=""
+  if has_tty; then
+    if [ -n "$2" ]; then
+      printf '%s [%s]: ' "$1" "$(tilde "$2")" > /dev/tty
+    else
+      printf '%s: ' "$1" > /dev/tty
+    fi
+    read -r answer < /dev/tty || true
+  fi
+  answer="${answer:-$2}"
+  case "$answer" in
+    "~") answer="$HOME" ;;
+    "~/"*) answer="$HOME/${answer#"~/"}" ;;
+  esac
+  printf '%s\n' "$answer"
+}
+tilde() { case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }
 
 case "$(uname -s)" in
   Darwin) OS=mac ;;
@@ -42,6 +64,7 @@ if ! command -v git >/dev/null 2>&1 || { [ "$OS" = mac ] && ! xcode-select -p >/
   die "git is needed: install it with your package manager (e.g. sudo apt install git), then run this command again."
 fi
 
+DEST="${ZENDO_HOME:-$(prompt "Where to put Zendo (the base)" "$HOME/.local/share/zendo")}"
 if [ -d "$DEST/.git" ]; then
   say "Updating Zendo in $DEST"
   git -C "$DEST" pull --ff-only --quiet || die "Could not update $DEST — run: git -C \"$DEST\" pull"
@@ -50,6 +73,17 @@ else
   say "Downloading Zendo to $DEST"
   mkdir -p "$(dirname "$DEST")"
   git clone --quiet "$REPO" "$DEST"
+fi
+
+# The personal layer: the folder (the one saved by a previous install is the default)
+# and, for a new folder, the repository to clone it from
+if [ -z "${ZENDO_USER:-}" ]; then
+  previous="$(cat "$DEST/.kit/user" 2>/dev/null || true)"
+  ZENDO_USER="$(prompt "Where to keep your personal layer (your themes, mods, settings)" "${previous:-$HOME/.config/zendo}")"
+fi
+export ZENDO_USER
+if [ -z "${ZENDO_USER_REPO:-}" ] && [ ! -d "$ZENDO_USER/.git" ]; then
+  ZENDO_USER_REPO="$(prompt "Repository with your personal layer, e.g. from another device (Enter — start a new one)" "")"
 fi
 
 # From here on, the project's own helpers know where Zen and its profile are.
@@ -71,7 +105,7 @@ if ! active_profile >/dev/null 2>&1; then
   die "Zen has never been launched: it is opening now to create a profile. Quit it and run this command again."
 fi
 
-# Your personal layer from its own repository (another device): ZENDO_USER_REPO=<url>
+# Your personal layer from its own repository (another device)
 if [ -n "${ZENDO_USER_REPO:-}" ]; then
   if [ -d "$ZENDO_USER/.git" ]; then
     warn "$ZENDO_USER is already a git repository — kept as is (update it with bin/personal pull)"
