@@ -1,31 +1,303 @@
 <h3><img src="assets/zendo-256.png" width="80" align="middle" alt="Zendo icon">&nbsp;&nbsp;<code>Zendo</code></h3>
 
-[Zen](https://zen-browser.app) you customize with AI. The idea is like
-[Omarchy](https://omarchy.org), but for a browser: a well-thought-out base,
-everything lives as text files, themes and mods switch with a single command,
-and anything new you just ask the AI assistant for, right in the browser's
-side panel — it writes the CSS and scripts itself.
+**[Zen](https://zen-browser.app), finished.** An IDE-like window layout, themes
+and mods you switch with one command, and every setting a text file in your own
+git repository. Missing something? Ask your AI agent — it writes the CSS or the
+script and commits it, and the browser picks it up: CSS at once, scripts after
+a restart.
 
-- an IDE-like window layout: toolbars on the edges, island-style side panels,
-  Zen workspaces as numbers at the top;
-- an AI assistant in a panel: Claude Code, a ChatGPT subscription or an API key;
-- themes, UI mods and site styles — CSS applies a second after saving, no
-  restart;
-- links from a page open in a split on the right.
+- **A layout like an IDE.** Tool rails on both edges, island side panels in
+  four zones, Zen workspaces as numbers in the top strip, links that a site
+  opens in a new tab open in a split.
+- **Everything is a file.** Themes, UI mods, site styles, scripts and `user.js`
+  live in git. CSS applies a second after you save — no restart. Your personal
+  layer can sync between machines through a repository of yours.
+- **Your agent can change any of it.** The side panel works with Claude Code, a
+  ChatGPT subscription, an API key or any OpenAI-compatible model; or run
+  `claude` / `codex` in the terminal. Every change is a separate commit, and
+  `git revert` undoes it. When a Zen update breaks a mod, ask the agent to fix
+  it.
 
-Zendo is an unofficial project, not affiliated with the Zen team. Runs on
-macOS and Linux; Windows isn't supported yet (see [Windows](#windows)).
+Zendo works fully without AI: the layout, themes and mods are plain files and
+commands. If you know [Omarchy](https://omarchy.org), it's the same idea for a
+browser — an opinionated base you own and change.
 
-## Installation
+macOS and Linux ([Windows](#windows) isn't supported yet) · an unofficial
+project, not affiliated with the Zen team · [MIT](#license)
 
-You need [Zen](https://zen-browser.app), launched at least once (so it has a
-profile), and git. Then run in a terminal:
+## Install
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/warfollowsme/zendo/main/install.sh | bash
 ```
 
-The script asks three things (Enter keeps the default):
+You need [Zen](https://zen-browser.app), launched at least once (so it has a
+profile), and git. The installer asks where to put Zendo and your personal
+layer, connects Zendo to your Zen profile and adds the **Zendo** launcher —
+start Zen with it from then on. The AI assistant additionally needs
+[Claude Code](https://claude.com/claude-code), a ChatGPT account or an API key.
+
+Platform notes, AppImage, Flatpak and removal — in
+[Installation details](#installation-details).
+
+## What's included
+
+- **Themes:** Tokyo Night, Catppuccin Mocha, Gruvbox Dark, Nord, Rosé Pine Dawn.
+- **Mods:** tab close button only on hover, monospace font in the address bar,
+  accent stripe on the active tab, no Firefox sidebar, address bar suggestions
+  as a separate island, slim address bar.
+- **Sites:** YouTube without Shorts.
+- **Scripts:** links that a site opens in a new tab open in a split to the
+  right of the page (preview only via the "Open Link in Glance" item; turn off
+  with `kit.links.split = false`), the layout with toolbars and side panels,
+  the AI assistant, site name in the address bar, minimalist folder icons,
+  "Copy as Markdown" in the tab menu (all need `--autoconfig`).
+
+Themes, mods and site styles are toggled with `bin/theme`, `bin/mod`,
+`bin/site` or in the **Settings** panel — see [Commands](#commands).
+
+## Security
+
+Zendo's browser scripts ([fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig))
+run with full browser privileges — files, cookies, everything the browser can
+reach — and the AI assistant can write them. In practice:
+
+- **Without asking**, the assistant reads tabs and pages, takes screenshots,
+  edits files in the base and your personal layer — scripts included — and
+  commits them.
+- **It asks first** before running JS on a page or in the browser window,
+  closing a tab, running shell commands outside a short list, or editing files
+  anywhere else (the full list is in [AI assistant](#ai-assistant)). "Allow all
+  in this chat" turns these questions off until the chat ends.
+- **Browser scripts and `user.js` take effect only after a restart** (↻ in the
+  panel or the next launch). Before that, `git -C ~/.config/zendo log -p` shows
+  exactly what was written. Site scripts (`sites/<name>.js`) run with page
+  privileges in a sandbox, on pages opened after the change.
+- **A page can try to talk the agent into things** (prompt injection). The
+  assistant is told to treat page text as data, not instructions, but that is
+  not a guarantee: read script commits before you restart, and don't use
+  "Allow all" while working with pages you don't trust.
+- With Claude Code, the browser tools are served over MCP on 127.0.0.1 only,
+  behind a one-time token, and the browser itself doesn't go online. With
+  ChatGPT and API keys, the browser sends the model requests itself.
+
+Only enable scripts written by you or the assistant, and read them first.
+
+## Base and personal layer
+
+- **Base** — `~/.local/share/zendo`, this repository. Updated with
+  `bin/update`. Don't edit it by hand — the update won't apply over such edits.
+- **Personal layer** — `~/.config/zendo`, your own git repository: your themes,
+  mods, site styles, scripts, `user.js`, small CSS tweaks, the chosen theme and
+  enabled mods. Updates don't touch it. A file with the same name as one in the
+  base replaces the base file. What goes where — see
+  `~/.config/zendo/README.md`.
+- **Personal instructions for AI** — `~/.config/zendo/AGENTS.md`: which
+  language to answer in, what to keep in mind.
+
+By default the assistant writes your changes to the personal layer and commits
+each one separately — anything that didn't work out can always be reverted
+with `git revert`.
+
+### Several devices
+
+The personal layer is a git repository, so it moves between devices through a
+repository of your own — a private one on GitHub, for example:
+
+```sh
+gh repo create zendo-personal --private          # once, on the first device
+~/.local/share/zendo/bin/personal remote https://github.com/<you>/zendo-personal.git
+~/.local/share/zendo/bin/personal push
+```
+
+On a new device, run the usual install command and give the installer your
+repository when it asks (or set `ZENDO_USER_REPO=<url>`) — your layer is cloned
+before Zendo connects to the profile (a private repository needs git access on
+that device: `gh auth login` or an SSH key). After that, `bin/personal push`
+sends your changes and `bin/personal pull` gets the ones made elsewhere.
+
+What moves: themes, mods, site styles and scripts, JS/CSS, `user.js`, the chosen
+theme and mods, `AGENTS.md`. What stays on each device (it lives in the Zen
+profile): each space's theme, the window layout, AI sign-in. Bookmarks,
+passwords and extensions are synced by Zen/Firefox itself.
+
+## Window layout
+
+At the top is the shared window strip: window buttons, Zen workspaces (like
+desktops in Omarchy: the workspace icon or number, the active one highlighted,
+click to switch; Create Space at the end); in the middle of the window, the
+page group (back/forward/reload, address bar, zoom); on the right, full screen
+and the **Split** button — its Add Right / Left / Top / Bottom Split menu
+splits the focused tab in half, with the new pane on the chosen side (Zen's
+split view, up to 4 panes; borders can be dragged with the mouse, the pane's
+mini-menu has an × to close it). While the address bar isn't focused, it shows
+the site name rather than the URL. In the center —
+only the site. On the edges — toolbars with tool icons and island-style side
+panels (like tool windows in an IDE):
+
+| Tool | What's in the panel |
+|---|---|
+| Tabs | Zen tabs; Create Folder at the end of the folders |
+| History, Downloads, Media, Boosts | sections of Zen's Library (its button is removed) |
+| Bookmarks | Firefox bookmarks |
+| Settings | theme, mods, site styles, layout reset |
+| AI | the assistant (below) |
+| Develop | browser console, Browser Toolbox, `bin/check`, scripts, errors |
+
+The panel UI is in English, using Zen's own font and icons.
+
+Clicking an icon opens or hides its panel. Icons can be dragged between four
+zones — left top, left bottom, right top, right bottom: a panel opens in the
+zone where its icon is. One side fits two panels (top and bottom); their width
+and the border between them can be dragged with the mouse. The old Firefox
+sidebar is removed (the `no-firefox-sidebar` mod).
+
+## Commands
+
+From the base folder (`~/.local/share/zendo`):
+
+| Command | What it does |
+|---|---|
+| `bin/theme` | list themes; `bin/theme <name>` — the default theme, `bin/theme zen-default` — Zen's colors. Each space can have its own theme: the Theme list in Create Space and on top of Zen's space theme picker ("Zen" shows the picker's color controls) |
+| `bin/mod` | UI mods; `bin/mod on <name>` / `bin/mod off <name>` |
+| `bin/site` | site styles (and their `<name>.js` scripts, if any); `bin/site on <name>` / `bin/site off <name>` |
+| `bin/update` | update the base from GitHub |
+| `bin/personal` | the personal layer's repository: `remote <url>`, `push`, `pull` (see [Several devices](#several-devices)) |
+| `bin/sync` | rebuild the profile — after adding or removing a file in the personal layer |
+| `bin/restart` | restart Zen; `--clear-cache` — after JS edits |
+| `bin/status` | what's connected, current theme and mods, Zen versions |
+| `bin/check` | check the base and personal layer without running Zen: imports, headers, JS syntax |
+| `bin/zen-source` | download or update the Zen sources in `zen-source/` (the AI uses them to find selectors) |
+| `bin/install` / `bin/uninstall` | connect / disconnect Zendo from the profile |
+| `bin/app` | make the Zendo launcher (Zendo.app on macOS, a menu entry on Linux) — starts Zen after checking the script loader and the profile (`bin/launch`) |
+
+The same things — themes, mods, sites — can be toggled in the **Settings**
+panel.
+
+## AI assistant
+
+Open it with the ✦ AI icon on the toolbar (top right by default),
+**Cmd+Shift+E**, or the "Ask the assistant" item in the page context menu (it
+fills in the selected text). Or work from a terminal:
+
+```sh
+cd ~/.local/share/zendo
+claude      # or codex
+```
+
+And just ask: "make a theme like Kanagawa", "hide the new tab button",
+"add a hotkey that closes all tabs to the right", "move my extensions over from
+Chrome". The agent knows the project structure, looks up selectors in the Zen
+sources (`bin/zen-source`) and commits each change separately — anything that
+didn't work out can always be reverted with `git revert`.
+
+While nothing is connected, the panel offers to pick a method — you can
+connect several at once: **Claude** (Claude Code), **ChatGPT** (a Plus/Pro/Team
+account), an **API key** (Anthropic or OpenAI) or any **OpenAI-compatible**
+service (OpenRouter, DeepSeek, Groq, Ollama, LM Studio…). Details are
+[below](#connection-details).
+
+Besides files, the assistant has browser tools:
+
+| Tool | What it does | Confirmation |
+|---|---|---|
+| `list_tabs`, `select_tab`, `open_url` | tabs and navigation | no |
+| `get_page` | page text, links, form fields | no |
+| `screenshot` | a screenshot of the page or the whole browser window | no |
+| `query_browser_ui` | Zen UI markup by selector | no |
+| `run_page_js` | JS on the page: clicks, forms, data collection | yes |
+| `run_browser_js` | JS in the browser window — live edits until a restart | yes |
+| `close_tab` | close a tab | yes |
+
+Shell commands other than `bin/check|status|sync|theme|mod|site`,
+`git [-C <folder>] status|diff|log|add|commit`, `ls` and `grep`, as well as
+edits to files outside the base and the personal layer, also require
+confirmation in the panel. You can click "Allow all in this chat".
+
+The assistant writes permanent browser changes to files and commits them; to
+apply them, press ↻ in the panel header: the browser restarts with the script
+cache cleared, and the conversation continues where it left off.
+
+### Connection details
+
+<details>
+<summary>Claude, ChatGPT, API keys, OpenAI-compatible services</summary>
+
+- **Claude** — under the hood it's the same Claude Code as in the terminal: the
+  panel runs `claude -p` in the Zendo folder, so the assistant knows AGENTS.md
+  and can do everything described above — themes, mods, site styles, scripts.
+  Sign-in is shared with the terminal (`claude auth login`); the panel only
+  checks it via `claude auth status`.
+- **ChatGPT** — sign in with a ChatGPT account (Plus/Pro/Team), no Codex CLI
+  needed. An OpenAI sign-in tab opens; after you sign in, the browser picks up
+  the token and closes the tab. Requests go to `chatgpt.com/backend-api/codex`
+  the same way the official Codex does; OpenAI doesn't officially support it
+  for third-party programs and may change it.
+- **API key** — an Anthropic (`sk-ant-…`) or OpenAI key; billed at API rates.
+  The key is verified by requesting the model list. Claude models over the API
+  use `fallbacks: "default"`: if the safety filter rejects a request, the API
+  retries it on a suitable model.
+- **OpenAI-compatible** ("Other" in the API key form) — OpenRouter, DeepSeek,
+  Groq, Ollama, LM Studio or your own address, with the Chat Completions API.
+  The key is optional for a local server; the model can be typed in or picked
+  from the server's list later. The model must support tools (function
+  calling) — the assistant works through them; OpenRouter models without tools
+  are hidden from the list. Weaker models make more mistakes when editing files.
+
+Tokens and keys are stored in the password manager (about:logins →
+`chrome://kit-ai`). ChatGPT and the API edit files with their own tools
+(`read_file`, `search_files`, `edit_file`, `write_file`, `run_command`) — in the
+base and the personal layer; they may not change `zen-source/`, `utils/`,
+`program/` or `.git/`.
+
+The panel header has new chat, history (conversations are stored in the Zen
+profile, `kit-ai-chats/`, and resume where they left off), the accounts menu
+(sign out of any of them or connect another) and ↻. Below the input field are
+the model and the reasoning effort; the model can be changed mid-conversation,
+while switching to another connection method starts a new chat. Files are
+attached with the + button, by dragging them onto the panel or by pasting an
+image (Cmd+V): images go to the model right in the message, as do PDFs and
+text (Claude Code reads them from disk, from `kit-ai-attachments/` in the
+profile). The pill with the tab title controls whether to share the active
+tab and selected text; click to turn it off.
+
+</details>
+
+### How it works
+
+<details>
+<summary>Files, the MCP server, preferences</summary>
+
+`JS/kit-ai.uc.js` (panel and tools),
+`JS/kit-ai.sys.mjs` (MCP server and launching Claude Code),
+`resources/kit-ai/chatgpt.sys.mjs` (ChatGPT sign-in and the agent loop),
+`resources/kit-ai/api.sys.mjs` (API keys: Anthropic, OpenAI, OpenAI-compatible, their agents),
+`CSS/kit-ai.uc.css` (panel appearance). Browser tools are given to Claude Code
+over MCP through a local server: it listens only on 127.0.0.1 on a random port
+and accepts only a one-time token. With Claude Code the browser doesn't go
+online itself; with ChatGPT and the API the browser sends the model requests
+itself.
+
+Preferences (about:config) — the same as the menu below the input field; empty
+means default:
+- `kit.ai.provider` — `claude`, `chatgpt`, `anthropic` or `openai`;
+- `kit.ai.model`, `kit.ai.claude-effort` — Claude Code model (`opus`, `sonnet`, `haiku`) and effort;
+- `kit.ai.openai-model`, `kit.ai.openai-effort` — ChatGPT;
+- `kit.ai.anthropic-model`, `kit.ai.anthropic-effort` — Anthropic API (default `claude-opus-5-5`);
+- `kit.ai.openai-api-model`, `kit.ai.openai-api-effort` — OpenAI API;
+- `kit.ai.claude-connected` — the Claude Code account connected in the panel;
+- `kit.ai.claude-models` — which Claude Code versions ran under the aliases
+  (`opus` → `claude-opus-5-5`); the panel updates it itself and shows the
+  versions in the menu;
+- `kit.ai.claude-path` — path to `claude`, if it wasn't found automatically;
+- `kit.ai.repo` — path to the repository, if the profile wasn't connected via
+  `bin/install`.
+
+</details>
+
+## Installation details
+
+The install command asks three things (Enter keeps the default):
 
 - where to put Zendo, the base — `~/.local/share/zendo`;
 - where to keep your personal layer — `~/.config/zendo`;
@@ -39,17 +311,13 @@ answers in variables (`ZENDO_HOME`, `ZENDO_USER`, `ZENDO_USER_REPO`) or
 From then on, start Zen with Zendo: a Zen update wipes the script loader from
 the program, and Zendo puts it back before every launch.
 
-The AI assistant needs [Claude Code](https://claude.com/claude-code), a
-ChatGPT account, or an API key: Anthropic, OpenAI or any OpenAI-compatible
-service (OpenRouter, DeepSeek, Groq, a local Ollama…) — the panel will ask which
-one to connect.
-
 ### macOS
 
 1. Install Zen: from [zen-browser.app](https://zen-browser.app) or
    `brew install --cask zen`. Launch it once and quit (Cmd+Q).
-2. Run the command above. git comes with Apple Command Line Tools — if they are
-   missing, the script opens their installer; run the command again afterwards.
+2. Run the [install command](#install). git comes with Apple Command Line
+   Tools — if they are missing, the script opens their installer; run the
+   command again afterwards.
 3. The script builds **Zendo.app** in `/Applications`. Drag it to the Dock in
    place of Zen.
 
@@ -59,7 +327,7 @@ one to connect.
    or your distro's package (e.g. `zen-browser-bin` from the AUR). Launch it once
    and quit.
 2. Install git (`sudo apt install git`, `sudo dnf install git`,
-   `sudo pacman -S git`) and run the command above.
+   `sudo pacman -S git`) and run the [install command](#install).
 3. Zen's program folder (e.g. `/opt/zen`) usually belongs to root, so copying
    the script loader there asks for your **sudo** password. Only two files are
    copied: `config.js` and `defaults/pref/config-prefs.js`.
@@ -111,223 +379,6 @@ bin/app                    # Zendo.app on macOS, a menu entry on Linux
 
 Without `--autoconfig` only themes and mods (CSS) work — no layout,
 assistant or other scripts.
-
-Scripts ([fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig))
-run with full browser privileges. Only install ones written by you or the
-assistant, and read them before enabling.
-
-## Base and personal layer
-
-- **Base** — `~/.local/share/zendo`, this repository. Updated with
-  `bin/update`. Don't edit it by hand — the update won't apply over such edits.
-- **Personal layer** — `~/.config/zendo`, your own git repository: your themes,
-  mods, site styles, scripts, `user.js`, small CSS tweaks, the chosen theme and
-  enabled mods. Updates don't touch it. A file with the same name as one in the
-  base replaces the base file. What goes where — see
-  `~/.config/zendo/README.md`.
-- **Personal instructions for AI** — `~/.config/zendo/AGENTS.md`: which
-  language to answer in, what to keep in mind.
-
-By default the assistant writes your changes to the personal layer and commits
-each one separately — anything that didn't work out can always be reverted
-with `git revert`.
-
-### Several devices
-
-The personal layer is a git repository, so it moves between devices through a
-repository of your own — a private one on GitHub, for example:
-
-```sh
-gh repo create zendo-personal --private          # once, on the first device
-~/.local/share/zendo/bin/personal remote https://github.com/<you>/zendo-personal.git
-~/.local/share/zendo/bin/personal push
-```
-
-On a new device, run the usual install command and give the installer your
-repository when it asks (or set `ZENDO_USER_REPO=<url>`) — your layer is cloned
-before Zendo connects to the profile
-
-(a private repository needs git access on that device: `gh auth login` or an SSH
-key). After that, `bin/personal push` sends your changes and `bin/personal pull`
-gets the ones made elsewhere.
-
-What moves: themes, mods, site styles and scripts, JS/CSS, `user.js`, the chosen
-theme and mods, `AGENTS.md`. What stays on each device (it lives in the Zen
-profile): each space's theme, the window layout, AI sign-in. Bookmarks,
-passwords and extensions are synced by Zen/Firefox itself.
-
-## Commands
-
-From the base folder (`~/.local/share/zendo`):
-
-| Command | What it does |
-|---|---|
-| `bin/theme` | list themes; `bin/theme <name>` — the default theme, `bin/theme zen-default` — Zen's colors. Each space can have its own theme: the Theme list in Create Space and on top of Zen's space theme picker ("Zen" shows the picker's color controls) |
-| `bin/mod` | UI mods; `bin/mod on <name>` / `bin/mod off <name>` |
-| `bin/site` | site styles (and their `<name>.js` scripts, if any); `bin/site on <name>` / `bin/site off <name>` |
-| `bin/update` | update the base from GitHub |
-| `bin/personal` | the personal layer's repository: `remote <url>`, `push`, `pull` (see [Several devices](#several-devices)) |
-| `bin/sync` | rebuild the profile — after adding or removing a file in the personal layer |
-| `bin/restart` | restart Zen; `--clear-cache` — after JS edits |
-| `bin/status` | what's connected, current theme and mods, Zen versions |
-| `bin/check` | check the base and personal layer without running Zen: imports, headers, JS syntax |
-| `bin/zen-source` | download or update the Zen sources in `zen-source/` (the AI uses them to find selectors) |
-| `bin/install` / `bin/uninstall` | connect / disconnect Zendo from the profile |
-| `bin/app` | make the Zendo launcher (Zendo.app on macOS, a menu entry on Linux) — starts Zen after checking the script loader and the profile (`bin/launch`) |
-
-The same things — themes, mods, sites — can be toggled in the **Settings**
-panel.
-
-What's included now:
-- **Themes:** Tokyo Night, Catppuccin Mocha, Gruvbox Dark, Nord, Rosé Pine Dawn.
-- **Mods:** tab close button only on hover, monospace font in the address bar,
-  accent stripe on the active tab, no Firefox sidebar, address bar suggestions
-  as a separate island, slim address bar.
-- **Sites:** YouTube without Shorts.
-- **Scripts:** links that a site opens in a new tab open in a split to the
-  right of the page (preview only via the "Open Link in Glance" item; turn off
-  with `kit.links.split = false`), the layout with toolbars and side panels,
-  the AI assistant, site name in the address bar, minimalist folder icons,
-  "Copy as Markdown" in the tab menu (all need `--autoconfig`).
-
-## Working with AI
-
-The easiest way is the AI panel in the browser. You can also use a terminal:
-
-```sh
-cd ~/.local/share/zendo
-claude      # or codex
-```
-
-And just ask: "make a theme like Kanagawa", "hide the new tab button",
-"add a hotkey that closes all tabs to the right", "move my extensions over from
-Chrome". The agent knows the project structure, looks up selectors in the Zen
-sources (`bin/zen-source`) and commits each change separately — anything that
-didn't work out can always be reverted with `git revert`.
-
-## Window layout
-
-At the top is the shared window strip: window buttons, Zen workspaces (like
-desktops in Omarchy: the workspace icon or number, the active one highlighted,
-click to switch; Create Space at the end); in the middle of the window, the
-page group (back/forward/reload, address bar, zoom); on the right, full screen
-and the **Split** button — its Add Right / Left / Top / Bottom Split menu
-splits the focused tab in half, with the new pane on the chosen side (Zen's
-split view, up to 4 panes; borders can be dragged with the mouse, the pane's
-mini-menu has an × to close it). While the address bar isn't focused, it shows
-the site name rather than the URL. In the center —
-only the site. On the edges — toolbars with tool icons and island-style side
-panels (like tool windows in an IDE):
-
-| Tool | What's in the panel |
-|---|---|
-| Tabs | Zen tabs; Create Folder at the end of the folders |
-| History, Downloads, Media, Boosts | sections of Zen's Library (its button is removed) |
-| Bookmarks | Firefox bookmarks |
-| Settings | theme, mods, site styles, layout reset |
-| AI | the assistant (below) |
-| Develop | browser console, Browser Toolbox, `bin/check`, scripts, errors |
-
-The panel UI is in English, using Zen's own font and icons.
-
-Clicking an icon opens or hides its panel. Icons can be dragged between four
-zones — left top, left bottom, right top, right bottom: a panel opens in the
-zone where its icon is. One side fits two panels (top and bottom); their width
-and the border between them can be dragged with the mouse. The old Firefox
-sidebar is removed (the `no-firefox-sidebar` mod).
-
-## AI assistant in the browser
-
-The ✦ AI icon on the toolbar (top right by default), **Cmd+Shift+E**, or the
-"Ask the assistant" item in the page context menu (it fills in the selected
-text).
-
-While nothing is connected, the panel offers to pick a method — you can
-connect several at once:
-
-- **Claude** — under the hood it's the same Claude Code as in the terminal: the
-  panel runs `claude -p` in the Zendo folder, so the assistant knows AGENTS.md
-  and can do everything described above — themes, mods, site styles, scripts.
-  Sign-in is shared with the terminal (`claude auth login`); the panel only
-  checks it via `claude auth status`.
-- **ChatGPT** — sign in with a ChatGPT account (Plus/Pro/Team), no Codex CLI
-  needed. An OpenAI sign-in tab opens; after you sign in, the browser picks up
-  the token and closes the tab. Requests go to `chatgpt.com/backend-api/codex`
-  the same way the official Codex does; OpenAI doesn't officially support it
-  for third-party programs and may change it.
-- **API key** — an Anthropic (`sk-ant-…`) or OpenAI key; billed at API rates.
-  The key is verified by requesting the model list. Claude models over the API
-  use `fallbacks: "default"`: if the safety filter rejects a request, the API
-  retries it on a suitable model.
-- **OpenAI-compatible** ("Other" in the API key form) — OpenRouter, DeepSeek,
-  Groq, Ollama, LM Studio or your own address, with the Chat Completions API.
-  The key is optional for a local server; the model can be typed in or picked
-  from the server's list later. The model must support tools (function
-  calling) — the assistant works through them; OpenRouter models without tools
-  are hidden from the list. Weaker models make more mistakes when editing files.
-
-Tokens and keys are stored in the password manager (about:logins →
-`chrome://kit-ai`). ChatGPT and the API edit files with their own tools
-(`read_file`, `search_files`, `edit_file`, `write_file`, `run_command`) — in the
-base and the personal layer; they may not change `zen-source/`, `utils/`,
-`program/` or `.git/`.
-
-The panel header has new chat, history (conversations are stored in the Zen
-profile, `kit-ai-chats/`, and resume where they left off), the accounts menu
-(sign out of any of them or connect another) and ↻. Below the input field are
-the model and the reasoning effort; the model can be changed mid-conversation,
-while switching to another connection method starts a new chat. Files are
-attached with the + button, by dragging them onto the panel or by pasting an
-image (Cmd+V): images go to the model right in the message, as do PDFs and
-text (Claude Code reads them from disk, from `kit-ai-attachments/` in the
-profile). The pill with the tab title controls whether to share the active
-tab and selected text; click to turn it off.
-
-Besides files, both models have browser tools:
-
-| Tool | What it does | Confirmation |
-|---|---|---|
-| `list_tabs`, `select_tab`, `open_url` | tabs and navigation | no |
-| `get_page` | page text, links, form fields | no |
-| `screenshot` | a screenshot of the page or the whole browser window | no |
-| `query_browser_ui` | Zen UI markup by selector | no |
-| `run_page_js` | JS on the page: clicks, forms, data collection | yes |
-| `run_browser_js` | JS in the browser window — live edits until a restart | yes |
-| `close_tab` | close a tab | yes |
-
-Shell commands other than `bin/check|status|sync|theme|mod|site`,
-`git [-C <folder>] status|diff|log|add|commit`, `ls` and `grep`, as well as
-edits to files outside the base and the personal layer, also require
-confirmation in the panel. You can click "Allow all in this chat".
-
-The assistant writes permanent browser changes to files and commits them; to
-apply them, press ↻ in the panel header: the browser restarts with the script
-cache cleared, and the conversation continues where it left off.
-
-How it works: `JS/kit-ai.uc.js` (panel and tools),
-`JS/kit-ai.sys.mjs` (MCP server and launching Claude Code),
-`resources/kit-ai/chatgpt.sys.mjs` (ChatGPT sign-in and the agent loop),
-`resources/kit-ai/api.sys.mjs` (API keys: Anthropic, OpenAI, OpenAI-compatible, their agents),
-`CSS/kit-ai.uc.css` (panel appearance). Browser tools are given to Claude Code
-over MCP through a local server: it listens only on 127.0.0.1 on a random port
-and accepts only a one-time token. With Claude Code the browser doesn't go
-online itself; with ChatGPT and the API the browser sends the model requests
-itself.
-
-Preferences (about:config) — the same as the menu below the input field; empty
-means default:
-- `kit.ai.provider` — `claude`, `chatgpt`, `anthropic` or `openai`;
-- `kit.ai.model`, `kit.ai.claude-effort` — Claude Code model (`opus`, `sonnet`, `haiku`) and effort;
-- `kit.ai.openai-model`, `kit.ai.openai-effort` — ChatGPT;
-- `kit.ai.anthropic-model`, `kit.ai.anthropic-effort` — Anthropic API (default `claude-opus-5-5`);
-- `kit.ai.openai-api-model`, `kit.ai.openai-api-effort` — OpenAI API;
-- `kit.ai.claude-connected` — the Claude Code account connected in the panel;
-- `kit.ai.claude-models` — which Claude Code versions ran under the aliases
-  (`opus` → `claude-opus-5-5`); the panel updates it itself and shows the
-  versions in the menu;
-- `kit.ai.claude-path` — path to `claude`, if it wasn't found automatically;
-- `kit.ai.repo` — path to the repository, if the profile wasn't connected via
-  `bin/install`.
 
 ## Good to know
 
