@@ -1,6 +1,6 @@
-<img src="assets/zendo-256.png" width="110" align="left" alt="Zendo icon">
+<img src="assets/zendo-256.png" width="100" align="left" alt="Zendo icon">
 
-# Zendo
+### `Zendo`
 
 <br clear="left">
 
