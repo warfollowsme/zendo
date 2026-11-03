@@ -665,8 +665,13 @@
   // Zen places the expanded URL bar over the window with top: -2px, assuming it's
   // flush with the window top; we measure where the URL bar sits to correct it.
   function setupCenter(navbar) {
+    const urlbar = document.getElementById("urlbar");
+    let closedTop = null; // where the collapsed URL bar is (see below)
     const update = () => {
       const rect = navbar.getBoundingClientRect();
+      if (urlbar && !urlbar.hasAttribute("breakout-extend")) {
+        closedTop = urlbar.getBoundingClientRect().top;
+      }
       browserBox.style.setProperty("--kit-navbar-top", `${Math.round(rect.top)}px`);
       // where the collapsed bar sits inside the URL bar strip, for the urlbar-dropdown mod,
       // so the expanded one stays exactly in place (Zen places it with top: -2px)
@@ -679,6 +684,24 @@
     new ResizeObserver(update).observe(navbar);
     window.addEventListener("resize", update);
     update();
+
+    // Where Zen puts the expanded bar differs by platform (the +2 above is
+    // macOS), so when it expands, compare with where the collapsed bar was and
+    // fix the shift before the frame is painted: the bar doesn't jump anywhere.
+    if (urlbar) {
+      new MutationObserver(() => {
+        const top = urlbar.getBoundingClientRect().top;
+        if (!urlbar.hasAttribute("breakout-extend")) {
+          closedTop = top;
+          return;
+        }
+        const off = closedTop === null ? 0 : closedTop - top;
+        if (Math.abs(off) >= 0.5 && Math.abs(off) < 40) {
+          const shift = parseFloat(browserBox.style.getPropertyValue("--kit-urlbar-shift")) || 0;
+          browserBox.style.setProperty("--kit-urlbar-shift", `${shift + off}px`);
+        }
+      }).observe(urlbar, { attributes: true, attributeFilter: ["breakout-extend"] });
+    }
   }
 
   // Split the focused tab in two: side is right / left / top / bottom.
@@ -889,6 +912,18 @@
         if (place?.area === "PersonalToolbar" || (!place && id !== "alltabs-button")) {
           CustomizableUI.addWidgetToArea(id, CustomizableUI.AREA_NAVBAR, ++position);
         }
+      }
+      // Split right after full screen, with no spring between the URL bar and it
+      // (a fresh profile has a spring and the extensions button there, and Split
+      // was placed before full screen arrived)
+      const fullscreen = CustomizableUI.getPlacementOfWidget("fullscreen-button");
+      if (fullscreen?.area === CustomizableUI.AREA_NAVBAR && CustomizableUI.getPlacementOfWidget("kit-split")) {
+        CustomizableUI.moveWidgetWithinArea("kit-split", fullscreen.position + 1);
+      }
+      const ids = CustomizableUI.getWidgetIdsInArea(CustomizableUI.AREA_NAVBAR);
+      const group = ids.slice(ids.indexOf("urlbar-container"), ids.indexOf("kit-split"));
+      for (const id of group.filter(id => id.startsWith("customizableui-special-spring"))) {
+        CustomizableUI.removeWidgetFromArea(id);
       }
       // the bookmarks bar has only hidden buttons and no bookmarks left: hide it
       const visible = CustomizableUI.getWidgetIdsInArea("PersonalToolbar").filter(
