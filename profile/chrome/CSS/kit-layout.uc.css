@@ -605,6 +605,19 @@
   opacity: 0.6;
 }
 
+/* "i" next to a group title: the explanation is in its tooltip */
+.kit-info {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-inline-start: 5px;
+  vertical-align: -2px;
+  background: url("chrome://browser/skin/zen-icons/info.svg") center / contain no-repeat;
+  -moz-context-properties: fill;
+  fill: currentColor;
+  cursor: help;
+}
+
 /* toggle row: checkbox, then name (as in Zen settings) */
 .kit-row {
   display: flex;
