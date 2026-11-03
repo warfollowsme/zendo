@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+# Links this project to a Zen profile.
+#
+#   bin/install                — link the base and the personal layer (~/.config/zendo) into the profile
+#   bin/install --autoconfig   — also install the JS script loader (fx-autoconfig) into Zen
+#   bin/install --dry-run      — show what would be done without making changes
+#
+# Options:
+#   --profile <path>  Zen profile (defaults to the active profile)
+#   --app <path>      Zen.app or application directory (for --autoconfig)
+#   --force           continue even if Zen is running
+#   ZENDO_USER=<path> personal layer folder (default ~/.config/zendo)
+#
+# Existing profile files are moved to .kit/backups/<timestamp>/.
+# Restore them with bin/uninstall.
+source "$(dirname "$0")/_lib.sh"
+
+DRY=0; AUTOCONFIG=0; FORCE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1 ;;
+    --autoconfig) AUTOCONFIG=1 ;;
+    --force) FORCE=1 ;;
+    --profile) shift; ZEN_PROFILE="${1:?a path is required after --profile}" ;;
+    --app) shift; ZEN_APP="${1:?a path is required after --app}" ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "Unknown option: $1 (bin/install --help)" ;;
+  esac
+  shift
+done
+
+run() {
+  if [ "$DRY" = 1 ]; then
+    printf '%s[dry-run]%s' "$C_DIM" "$C_RESET"; printf ' %q' "$@"; printf '\n'
+  else
+    "$@"
+  fi
+}
+
+# Ставим в тот профиль, который Zen реально открывает, а не в сохранённый
+# при прошлой установке: Zen мог с тех пор переключиться на другой.
+PROFILE="$(require_active_profile)"
+info "Zen profile: ${C_BOLD}$PROFILE${C_RESET}"
+if [ -f "$KIT_STATE/profile" ] && [ "$(cat "$KIT_STATE/profile")" != "$PROFILE" ]; then
+  warn "The project was previously linked to a different profile: $(cat "$KIT_STATE/profile")"
+  warn "Linking to the profile Zen currently opens. Remove the old links with:"
+  warn "  bin/uninstall --profile \"$(cat "$KIT_STATE/profile")\""
+fi
+
+if zen_running && [ "$FORCE" = 0 ] && [ "$DRY" = 0 ]; then
+  die "Zen is running. Quit it (Cmd+Q) and rerun this command, or add --force."
+fi
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+BACKUP="$KIT_STATE/backups/$STAMP"
+n=2
+while [ -e "$BACKUP" ] || [ -e "$BACKUP.restored" ]; do
+  BACKUP="$KIT_STATE/backups/$STAMP-$n"; n=$((n + 1))
+done
+backed_up=0
+
+# Всё, что лежит в профиле на наших местах и создано не этим проектом
+# (старые userChrome.css, user.js, ссылки на другую папку проекта), — в бэкап.
+backup() {
+  local dest="$1" rel
+  [ -e "$dest" ] || [ -L "$dest" ] || return 0
+  is_ours "$dest" && return 0
+  rel="${dest#"$PROFILE"/}"
+  run mkdir -p "$BACKUP/$(dirname "$rel")"
+  run mv "$dest" "$BACKUP/$rel"
+  backed_up=1
+  warn "previous file backed up: $rel"
+}
+
+run mkdir -p "$PROFILE/chrome" "$KIT_STATE"
+for src in "$KIT_CHROME_SRC"/* "$PROFILE/chrome/user"; do
+  backup "$PROFILE/chrome/$(basename "$src")"
+done
+backup "$PROFILE/user.js"
+
+if [ "$DRY" = 0 ]; then
+  printf '%s\n' "$PROFILE" > "$KIT_STATE/profile"
+  printf '%s\n' "$ZENDO_USER" > "$KIT_STATE/user"
+  if [ "$backed_up" = 1 ]; then
+    printf '%s\n' "$PROFILE" > "$BACKUP/.profile"
+    info "Backup: ${BACKUP#"$KIT_ROOT"/}"
+  fi
+  "$KIT_ROOT/bin/sync"
+  # Личный слой — свой git-репозиторий: любую личную правку можно откатить.
+  if [ ! -d "$ZENDO_USER/.git" ] && command -v git >/dev/null 2>&1; then
+    if git -C "$ZENDO_USER" init -q && git -C "$ZENDO_USER" add -A &&
+       git -C "$ZENDO_USER" commit -q -m "zendo: личные настройки" >/dev/null 2>&1; then
+      ok "Personal layer is a git repository: $ZENDO_USER"
+    fi
+  fi
+else
+  info "${C_DIM}[dry-run] bin/sync — link base files and $ZENDO_USER into the profile${C_RESET}"
+fi
+
+if [ "$AUTOCONFIG" = 1 ]; then
+  RES="$(detect_app_resources)" || die "Zen application not found. Specify the path: bin/install --autoconfig --app /Applications/Zen.app"
+  info ""
+  info "Script loader (fx-autoconfig) → ${C_BOLD}$RES${C_RESET}"
+  if [ ! -w "$RES" ] && [ "$DRY" = 0 ]; then
+    die "No write permission for $RES. Try: sudo bin/install --autoconfig"
+  fi
+  if [ -f "$RES/config.js" ] && ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
+    run mkdir -p "$BACKUP/program"
+    run cp "$RES/config.js" "$BACKUP/program/config.js"
+    warn "the application had a different config.js — a copy was backed up"
+  fi
+  run cp "$KIT_ROOT/program/config.js" "$RES/config.js"
+  run mkdir -p "$RES/defaults/pref"
+  run cp "$KIT_ROOT/program/defaults/pref/config-prefs.js" "$RES/defaults/pref/config-prefs.js"
+  ok "config.js and defaults/pref/config-prefs.js copied"
+  if [ "$DRY" = 0 ]; then
+    clear_startup_cache "$PROFILE"
+  fi
+  warn "Zen updates remove these files: launch Zen via Zendo.app (bin/app) to restore them automatically."
+fi
+
+info ""
+info "Done. Launch Zen. Next steps:"
+info "  bin/theme            — themes"
+info "  bin/mod              — interface mods"
+info "  bin/site             — site styles"
+info "  bin/status           — linked files and status"
+info "Your own themes, mods and settings go to $ZENDO_USER"

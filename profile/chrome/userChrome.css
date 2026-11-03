@@ -1,0 +1,18 @@
+/*
+ * userChrome.css — внешний вид самого браузера (вкладки, панели, адресная строка).
+ *
+ * Тема, моды и личные правки подключаются импортами ниже:
+ *   bin/theme <имя>      — сменить тему (пишет ~/.config/zendo/current/theme.css)
+ *   bin/mod on|off <имя> — включить/выключить мод (пишет current/mods.css)
+ *   user/userChrome.css  — личные мелкие правки (~/.config/zendo/userChrome.css)
+ * kit/ и user/ в профиле собирает bin/sync из базы и личного слоя.
+ * Этот файл — часть базы: свои правки пиши в личный слой, а не сюда.
+ *
+ * Условие not -moz-pref("kit.css.live"): со скриптами (bin/install
+ * --autoconfig) всё это подключает JS/kit-live-css.sys.mjs — сразу, без
+ * перезапуска, — и импорты отключаются. Без скриптов работают импорты,
+ * а изменения видны после перезапуска.
+ */
+@import url("kit/theme.css") not -moz-pref("kit.css.live");
+@import url("kit/mods.css") not -moz-pref("kit.css.live");
+@import url("user/userChrome.css") not -moz-pref("kit.css.live");

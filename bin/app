@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Собрать Zendo.app — значок, который запускает Zen через bin/launch.
+#   bin/app              — собрать в /Applications/Zendo.app
+#   bin/app <папка>      — собрать в другую папку (например ~/Applications)
+#
+# Внутри только ссылка на эту папку проекта: логика запуска — в bin/launch,
+# поэтому пересобирать нужно лишь после переноса проекта. Значок — assets/Zendo.icns
+# (рисует assets/make-icon.swift), без него — значок Zen.
+source "$(dirname "$0")/_lib.sh"
+
+is_macos || die "Zendo.app is for macOS only"
+DEST="${1:-/Applications}/Zendo.app"
+RES="$(detect_app_resources)" || die "Zen application not found in /Applications"
+
+ICON="$(/usr/bin/defaults read "$(cd "$RES/.." && pwd -P)/Info" CFBundleIconFile 2>/dev/null || true)"
+ICON="${ICON%.icns}"
+
+rm -rf "$DEST"
+mkdir -p "$DEST/Contents/MacOS" "$DEST/Contents/Resources"
+
+cat > "$DEST/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>Zendo</string>
+  <key>CFBundleDisplayName</key><string>Zendo</string>
+  <key>CFBundleIdentifier</key><string>local.zendo.launcher</string>
+  <key>CFBundleExecutable</key><string>Zendo</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleIconFile</key><string>Zendo</string>
+  <key>LSUIElement</key><true/>
+</dict>
+</plist>
+EOF
+
+if [ -f "$KIT_ROOT/assets/Zendo.icns" ]; then
+  cp "$KIT_ROOT/assets/Zendo.icns" "$DEST/Contents/Resources/Zendo.icns"
+elif [ -n "$ICON" ] && [ -f "$RES/$ICON.icns" ]; then
+  cp "$RES/$ICON.icns" "$DEST/Contents/Resources/Zendo.icns"
+fi
+
+cat > "$DEST/Contents/MacOS/Zendo" <<EOF
+#!/bin/bash
+# Zendo: запуск Zen через проект $KIT_ROOT (собрано bin/app).
+if [ ! -x "$KIT_ROOT/bin/launch" ]; then
+  /usr/bin/osascript -e 'display alert "Zendo" message "Папка проекта не найдена: $KIT_ROOT. Перенёс проект — запусти в нём bin/app." as warning'
+  exec /usr/bin/open -a Zen
+fi
+exec "$KIT_ROOT/bin/launch"
+EOF
+chmod +x "$DEST/Contents/MacOS/Zendo"
+touch "$DEST"
+
+ok "Built $DEST → $KIT_ROOT/bin/launch"
+info "Drag it to the Dock in place of Zen."

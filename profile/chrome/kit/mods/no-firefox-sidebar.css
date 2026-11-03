@@ -1,0 +1,10 @@
+/*
+ * @name No Firefox sidebar
+ * @description Hides the old Firefox sidebar (bookmarks, history, Synced Tabs) and its button. Bookmarks, history and downloads live in the layout side panels.
+ */
+
+#sidebar-box,
+#sidebar-splitter,
+#sidebar-button {
+  display: none !important;
+}

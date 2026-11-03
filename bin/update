@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Обновляет базу Zendo из GitHub. Личный слой ($ZENDO_USER) не трогает.
+#   bin/update   — скачать обновления, собрать профиль заново
+source "$(dirname "$0")/_lib.sh"
+
+command -v git >/dev/null 2>&1 || die "git is not installed"
+[ -d "$KIT_ROOT/.git" ] || die "$KIT_ROOT is not a git repository — reinstall Zendo"
+
+if [ -n "$(git -C "$KIT_ROOT" status --porcelain --untracked-files=no)" ]; then
+  warn "The base has local changes:"
+  git -C "$KIT_ROOT" status --short --untracked-files=no >&2
+  die "Move your changes to $ZENDO_USER (or commit them) and rerun bin/update."
+fi
+
+before="$(git -C "$KIT_ROOT" rev-parse HEAD)"
+git -C "$KIT_ROOT" pull --ff-only --quiet || die "Could not update (the base has its own commits?): git -C \"$KIT_ROOT\" pull"
+after="$(git -C "$KIT_ROOT" rev-parse HEAD)"
+
+if [ "$before" = "$after" ]; then
+  ok "Already up to date"
+  exit 0
+fi
+info "${C_BOLD}What's new:${C_RESET}"
+git -C "$KIT_ROOT" log --format='  %s' "$before..$after"
+
+"$KIT_ROOT/bin/sync" --quiet || true
+# загрузчик скриптов в программе Zen мог измениться
+if RES="$(detect_app_resources 2>/dev/null)" && [ -f "$RES/config.js" ] &&
+   ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
+  warn "The script loader changed: it is updated on the next launch via Zendo.app (or bin/install --autoconfig)"
+fi
+ok "Updated. Restart Zen to apply: bin/restart --clear-cache"

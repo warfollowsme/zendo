@@ -1,0 +1,13 @@
+/*
+ * @name Tokyo Night
+ * @scheme dark
+ */
+:root {
+  --theme-scheme: dark;
+  --theme-bg: #1a1b26;       /* фон окна и боковой панели */
+  --theme-surface: #24283b;  /* адресная строка, панели, меню */
+  --theme-fg: #c0caf5;       /* основной текст и иконки */
+  --theme-muted: #565f89;    /* второстепенный текст */
+  --theme-accent: #7aa2f7;   /* акцент: выбранная вкладка, кнопки */
+  --theme-border: #414868;   /* рамки и разделители */
+}

@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Unlinks the project from a Zen profile and restores files from before bin/install.
+#
+#   bin/uninstall               — remove symlinks and restore files from the latest backup
+#   bin/uninstall --autoconfig  — also remove the script loader from the Zen application
+#   bin/uninstall --dry-run     — show what would be done without making changes
+#   bin/uninstall --force       — even if Zen is running
+source "$(dirname "$0")/_lib.sh"
+
+DRY=0; AUTOCONFIG=0; FORCE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dry-run) DRY=1 ;;
+    --autoconfig) AUTOCONFIG=1 ;;
+    --force) FORCE=1 ;;
+    --profile) shift; ZEN_PROFILE="${1:?a path is required after --profile}" ;;
+    --app) shift; ZEN_APP="${1:?a path is required after --app}" ;;
+    -h|--help) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "Unknown option: $1" ;;
+  esac
+  shift
+done
+
+run() {
+  if [ "$DRY" = 1 ]; then
+    printf '%s[dry-run]%s' "$C_DIM" "$C_RESET"; printf ' %q' "$@"; printf '\n'
+  else
+    "$@"
+  fi
+}
+
+PROFILE="$(require_profile)"
+info "Zen profile: ${C_BOLD}$PROFILE${C_RESET}"
+if zen_running && [ "$DRY" = 0 ] && [ "$FORCE" = 0 ]; then
+  die "Zen is running. Quit it (Cmd+Q) and rerun this command."
+fi
+
+# 1. Убрать то, что создал проект: ссылки, папки со ссылками, собранный user.js.
+#    Сам личный слой ($ZENDO_USER) остаётся на месте.
+for p in "$PROFILE/chrome"/* "$PROFILE/user.js"; do
+  if { [ -e "$p" ] || [ -L "$p" ]; } && is_ours "$p"; then
+    run rm -rf "$p"
+    ok "removed: ${p#"$PROFILE"/}"
+  fi
+done
+
+# 2. Вернуть бэкап (последний, сделанный для этого профиля и ещё не возвращённый)
+BACKUP=""
+if [ -d "$KIT_STATE/backups" ]; then
+  for d in "$KIT_STATE/backups"/*; do
+    [ -d "$d" ] || continue
+    case "$d" in *.restored) continue ;; esac
+    [ -f "$d/.profile" ] && [ "$(cat "$d/.profile")" = "$PROFILE" ] && BACKUP="$d"
+  done
+fi
+if [ -n "$BACKUP" ]; then
+  info "Restoring from backup ${BACKUP#"$KIT_ROOT"/}"
+  for item in "$BACKUP"/chrome/* "$BACKUP"/chrome/.[!.]* "$BACKUP/user.js"; do
+    [ -e "$item" ] || continue
+    rel="${item#"$BACKUP"/}"
+    if [ -e "$PROFILE/$rel" ]; then
+      warn "skipping $rel — the file already exists in the profile"
+      continue
+    fi
+    run mkdir -p "$(dirname "$PROFILE/$rel")"
+    run mv "$item" "$PROFILE/$rel"
+    ok "restored $rel"
+  done
+else
+  info "${C_DIM}No backup for this profile — nothing to restore.${C_RESET}"
+fi
+
+# 3. Загрузчик скриптов
+if [ "$AUTOCONFIG" = 1 ]; then
+  RES="$(detect_app_resources)" || die "Zen application not found. Specify the path: --app /Applications/Zen.app"
+  if [ -f "$RES/config.js" ] && cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
+    run rm "$RES/config.js"
+    ok "config.js removed from the application"
+  fi
+  if [ -f "$RES/defaults/pref/config-prefs.js" ] && cmp -s "$RES/defaults/pref/config-prefs.js" "$KIT_ROOT/program/defaults/pref/config-prefs.js"; then
+    run rm "$RES/defaults/pref/config-prefs.js"
+    ok "defaults/pref/config-prefs.js removed"
+  fi
+  if [ -n "$BACKUP" ] && [ -f "$BACKUP/program/config.js" ]; then
+    run cp "$BACKUP/program/config.js" "$RES/config.js"
+    ok "previous application config.js restored"
+  fi
+  [ "$DRY" = 0 ] && clear_startup_cache "$PROFILE"
+fi
+
+# 4. Пометить бэкап как возвращённый
+if [ -n "$BACKUP" ]; then
+  if [ -f "$BACKUP/program/config.js" ] && [ "$AUTOCONFIG" = 0 ]; then
+    warn "the backup still contains the previous application config.js — restore it with bin/uninstall --autoconfig"
+  else
+    run mv "$BACKUP" "$BACKUP.restored"
+  fi
+fi
+
+[ "$DRY" = 0 ] && rm -f "$KIT_STATE/profile"
+info ""
+info "Done. Zen will start without this project next time."
+info "Your personal layer is kept: $ZENDO_USER"
+info "${C_DIM}Previously applied user.js settings remain in the profile (prefs.js) — reset them in about:config.${C_RESET}"

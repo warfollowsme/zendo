@@ -1,0 +1,7 @@
+/*
+ * @name Accent border on the active tab
+ * @description Draws a thin accent-colored border around the selected tab (color from the current theme or Zen settings).
+ */
+.tabbrowser-tab[selected] .tab-background {
+  box-shadow: inset 0 0 0 1px var(--zen-primary-color) !important;
+}

@@ -1,0 +1,82 @@
+/*
+ * Движок тем.
+ *
+ * Тема (kit/themes/*.css) задаёт 7 переменных --theme-*,
+ * а этот файл раскладывает их по переменным Zen и Firefox.
+ * Чтобы поменять цвета — правь тему. Сюда лезь, только если нужно
+ * покрасить элемент, который ни одна тема пока не красит.
+ *
+ * Почему !important: userChrome.css — пользовательская таблица стилей,
+ * её !important сильнее и обычных стилей Zen, и его !important,
+ * и инлайн-стилей, которые Zen ставит из JS (ZenGradientGenerator).
+ *
+ * Приватные окна не трогаем — у них своя тёмная схема.
+ *
+ * Переменные задаём и на #browser: Zen по цвету пространства решает, тёмное
+ * ли окно (zen-should-be-dark-mode), и вешает свою схему (белый текст и т.п.)
+ * прямо на #browser. Переменная, объявленная на вложенном элементе, всегда
+ * перебивает унаследованную с корня, даже с !important, — без этого в
+ * светлых темах текст внутри окна оставался белым. По той же причине —
+ * zen-workspace: на нём Zen из JS ставит инлайн --toolbox-textcolor по цветам
+ * пространства, а от него красятся подписи вкладок. И на тех элементах,
+ * которым Zen ставит схему системы отдельно (zen-theme.css → schemes/):
+ * раскрытая адресная строка, панели, меню — иначе в светлой теме при
+ * тёмной системе текст в них белый на светлом фоне.
+ */
+
+:root:not([zen-private-window="true"]),
+:root:not([zen-private-window="true"]) :is(#browser, zen-workspace, #urlbar[breakout-extend], panel, menupopup, .zen-browser-generic-background) {
+  color-scheme: var(--theme-scheme) !important;
+  --toolbar-color-scheme: var(--theme-scheme) !important;
+
+  /* Акцент. Из него Zen сам выводит --zen-colors-* (см. zen-theme.css) */
+  --zen-primary-color: var(--theme-accent) !important;
+  --zen-colors-primary: var(--theme-surface) !important;
+  --zen-colors-secondary: var(--theme-surface) !important;
+  --zen-colors-tertiary: var(--theme-bg) !important;
+  --zen-colors-border: var(--theme-border) !important;
+
+  /* Фоны */
+  --zen-main-browser-background: var(--theme-bg) !important;
+  --zen-main-browser-background-toolbar: var(--theme-bg) !important;
+  --zen-dialog-background: var(--theme-surface) !important;
+  --zen-urlbar-background: var(--theme-surface) !important;
+
+  /* Текст */
+  --toolbox-textcolor: var(--theme-fg) !important;
+  --toolbar-color: var(--theme-fg) !important;
+  --sidebar-text-color: var(--theme-fg) !important;
+  --text-color-deemphasized: var(--theme-muted) !important;
+
+  /* Адресная строка и поля ввода */
+  --toolbar-field-color: var(--theme-fg) !important;
+  --toolbar-field-focus-color: var(--theme-fg) !important;
+  --toolbar-field-background-color: var(--theme-surface) !important;
+  --toolbar-field-focus-background-color: var(--theme-surface) !important;
+
+  /* Всплывающие панели и меню */
+  --arrowpanel-background: var(--theme-surface) !important;
+  --arrowpanel-color: var(--theme-fg) !important;
+  --arrowpanel-border-color: var(--theme-border) !important;
+}
+
+/*
+ * Zen рисует фон окна через инлайн-переменные на этих двух элементах
+ * (см. zen-source/src/zen/spaces/ZenGradientGenerator.mjs), поэтому
+ * переопределяем прямо на них — иначе градиент пространства победит.
+ */
+:root:not([zen-private-window="true"]) :is(#zen-browser-background, #zen-toolbar-background) {
+  --zen-main-browser-background: var(--theme-bg) !important;
+  --zen-main-browser-background-toolbar: var(--theme-bg) !important;
+  --zen-main-browser-background-old: var(--theme-bg) !important;
+  --zen-main-browser-background-toolbar-old: var(--theme-bg) !important;
+  --zen-background-opacity: 1 !important;
+}
+
+:root:not([zen-private-window="true"]) .urlbar-background {
+  background-color: var(--theme-surface) !important;
+}
+
+:root:not([zen-private-window="true"]) ::selection {
+  background-color: color-mix(in srgb, var(--theme-accent) 35%, transparent) !important;
+}

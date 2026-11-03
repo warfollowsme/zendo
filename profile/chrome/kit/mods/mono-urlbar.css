@@ -1,0 +1,7 @@
+/*
+ * @name Monospace address bar
+ * @description The address is typed in a monospace font, like in a terminal.
+ */
+#urlbar-input {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace !important;
+}

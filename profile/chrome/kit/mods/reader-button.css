@@ -1,0 +1,10 @@
+/*
+ * @name Reader View button
+ * @description Show the built-in Reader View button in the address bar for readable articles.
+ */
+
+/* Zen прячет штатную кнопку в пользу меню сайта. Возвращаем только
+   доступную кнопку; распознавание статьи и переключение оставляем браузеру. */
+:root:not([zen-private-window="true"]) #reader-mode-button:not([hidden]) {
+  display: flex !important;
+}

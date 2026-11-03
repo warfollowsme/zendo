@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Что подключено: профиль, личный слой, тема, моды, загрузчик скриптов, версии Zen.
+source "$(dirname "$0")/_lib.sh"
+
+info "${C_BOLD}Base:${C_RESET} $KIT_ROOT"
+info "${C_BOLD}Personal layer:${C_RESET} $ZENDO_USER"
+
+if PROFILE="$(detect_profile)" && [ -d "$PROFILE" ]; then
+  info "${C_BOLD}Zen profile:${C_RESET} $PROFILE"
+  ACTIVE="$(active_profile 2>/dev/null || true)"
+  if [ -n "$ACTIVE" ] && [ "$ACTIVE" != "$PROFILE" ]; then
+    warn "Zen opens a different profile: $ACTIVE"
+    warn "the project is not linked to it — run bin/install (and bin/install --autoconfig for scripts)"
+  fi
+  if [ "$(readlink "$PROFILE/chrome/userChrome.css" 2>/dev/null)" = "$KIT_CHROME_SRC/userChrome.css" ] &&
+     [ "$(readlink "$PROFILE/chrome/user" 2>/dev/null)" = "$ZENDO_USER" ] &&
+     head -n 1 "$PROFILE/user.js" 2>/dev/null | grep -qF "$SYNC_MARK"; then
+    ok "profile is linked to the base and the personal layer"
+  else
+    warn "profile is not linked (or uses the old layout) — run bin/install"
+  fi
+else
+  warn "Zen profile not found (launch Zen at least once or set ZEN_PROFILE)"
+fi
+
+info "${C_BOLD}Theme:${C_RESET} $("$KIT_ROOT/bin/theme" current)"
+mods="$(sed -n 's|^@import url("mods/\(.*\)\.css");$|\1|p' "$ZENDO_USER/current/mods.css" 2>/dev/null | tr '\n' ' ' || true)"
+sites="$(sed -n 's|^@import url("sites/\(.*\)\.css");$|\1|p' "$ZENDO_USER/current/sites.css" 2>/dev/null | tr '\n' ' ' || true)"
+info "${C_BOLD}Mods:${C_RESET} ${mods:-none}"
+info "${C_BOLD}Sites:${C_RESET} ${sites:-none}"
+
+if RES="$(detect_app_resources 2>/dev/null)"; then
+  if [ -f "$RES/config.js" ] && cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js"; then
+    ok "JS script loader installed"
+  else
+    info "${C_BOLD}JS scripts:${C_RESET} loader not installed (bin/install --autoconfig)"
+  fi
+fi
+
+iv="$(installed_zen_version 2>/dev/null || true)"
+sv="$(zen_source_version 2>/dev/null || true)"
+info "${C_BOLD}Zen:${C_RESET} installed ${iv:-?}, source in zen-source ${sv:-not available (bin/zen-source)}"
+if [ -n "$iv" ] && [ -n "$sv" ] && [ "$iv" != "$sv" ]; then
+  warn "versions differ — update the source: bin/zen-source"
+fi

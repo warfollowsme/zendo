@@ -1,0 +1,13 @@
+/*
+ * @name Rosé Pine Dawn
+ * @scheme light
+ */
+:root {
+  --theme-scheme: light;
+  --theme-bg: #faf4ed;       /* фон окна и боковой панели */
+  --theme-surface: #f2e9e1;  /* адресная строка, панели, меню */
+  --theme-fg: #575279;       /* основной текст и иконки */
+  --theme-muted: #9893a5;    /* второстепенный текст */
+  --theme-accent: #907aa9;   /* акцент: выбранная вкладка, кнопки */
+  --theme-border: #dfdad9;   /* рамки и разделители */
+}

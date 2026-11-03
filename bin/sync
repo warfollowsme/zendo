@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# Собирает профиль Zen из базы (этот репозиторий) и личного слоя ($ZENDO_USER).
+#   bin/sync          — обновить ссылки в профиле и user.js
+#   bin/sync --quiet  — то же без вывода (так его зовут bin/mod, bin/launch…)
+#
+# В профиле chrome/:
+#   userChrome.css, userContent.css, resources, utils — ссылки на базу;
+#   user      — ссылка на личный слой;
+#   JS/, CSS/ — папки со ссылками на файлы базы и личного слоя
+#               (личный файл заменяет одноимённый базовый);
+#   kit/      — то же для тем, модов и стилей сайтов; theme.css, mods.css,
+#               sites.css — ссылки на выбор пользователя ($ZENDO_USER/current/).
+# user.js профиля собирается из profile/user.js и $ZENDO_USER/user.js.
+#
+# Запускай после того, как добавил или удалил файл в личном слое; Zen можно
+# не закрывать. Код выхода 3 — проект ещё не подключён к профилю (bin/install).
+source "$(dirname "$0")/_lib.sh"
+
+QUIET=0
+[ "${1:-}" = "--quiet" ] && QUIET=1
+say() { [ "$QUIET" = 1 ] || ok "$@"; }
+
+[ -f "$KIT_STATE/profile" ] || { [ "$QUIET" = 1 ] || warn "Not installed yet — run bin/install"; exit 3; }
+PROFILE="$(cat "$KIT_STATE/profile")"
+[ -d "$PROFILE" ] || { [ "$QUIET" = 1 ] || warn "Profile not found: $PROFILE — run bin/install"; exit 3; }
+CHROME="$PROFILE/chrome"
+mkdir -p "$CHROME"
+
+# ---- личный слой: недостающее берём из заготовки (папки, current/*.css, user.js)
+
+mkdir -p "$ZENDO_USER"
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if [ ! -e "$ZENDO_USER/$f" ]; then
+    mkdir -p "$(dirname "$ZENDO_USER/$f")"
+    cp "$KIT_SKEL/$f" "$ZENDO_USER/$f"
+    say "created $ZENDO_USER/${f#./}"
+  fi
+done <<EOF
+$(cd "$KIT_SKEL" && find . -type f ! -name '._*' ! -name .DS_Store | sort)
+EOF
+
+# ---- ссылки
+
+# link_to SRC DEST — DEST станет ссылкой на SRC; чужие файлы не трогаем
+link_to() {
+  local src="$1" dest="$2"
+  [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ] && return 0
+  if [ -L "$dest" ] || [ -e "$dest" ]; then
+    if ! is_ours "$dest"; then
+      warn "skipped ${dest#"$PROFILE"/}: not created by this project (bin/install moves it to a backup)"
+      return 0
+    fi
+    rm -rf "$dest"
+  fi
+  ln -s "$src" "$dest"
+  say "${dest#"$PROFILE"/} → $src"
+}
+
+# merge_dir DEST BASE USER — папка DEST со ссылками на файлы BASE и USER
+merge_dir() {
+  local dest="$1" base="$2" user="$3" names name p
+  if [ -L "$dest" ]; then
+    is_ours "$dest" || { warn "skipped ${dest#"$PROFILE"/}: not created by this project"; return 0; }
+    rm "$dest" # раньше вся папка была одной ссылкой на базу
+  fi
+  mkdir -p "$dest"
+  names="$({ ls -A "$base" 2>/dev/null; ls -A "$user" 2>/dev/null; } |
+    grep -v -e '^\._' -e '^\.DS_Store$' -e '^\.gitkeep$' | sort -u || true)"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if [ -e "$user/$name" ]; then
+      link_to "$user/$name" "$dest/$name"
+    else
+      link_to "$base/$name" "$dest/$name"
+    fi
+  done <<EOF
+$names
+EOF
+  # ссылки на удалённые файлы
+  for p in "$dest"/* "$dest"/.[!.]*; do
+    [ -L "$p" ] || continue
+    if ! printf '%s\n' "$names" | grep -qxF "$(basename "$p")"; then
+      rm "$p"
+      say "removed ${p#"$PROFILE"/}"
+    fi
+  done
+}
+
+for src in "$KIT_CHROME_SRC"/*; do
+  [ -e "$src" ] || continue
+  name="$(basename "$src")"
+  case "$name" in
+    JS|CSS) merge_dir "$CHROME/$name" "$src" "$ZENDO_USER/$name" ;;
+    kit)
+      if [ -L "$CHROME/kit" ] && is_ours "$CHROME/kit"; then rm "$CHROME/kit"; fi
+      mkdir -p "$CHROME/kit"
+      for k in "$src"/*; do
+        [ -e "$k" ] || continue
+        case "$(basename "$k")" in
+          themes|mods|sites) merge_dir "$CHROME/kit/$(basename "$k")" "$k" "$ZENDO_USER/$(basename "$k")" ;;
+          *) link_to "$k" "$CHROME/kit/$(basename "$k")" ;;
+        esac
+      done
+      for k in theme mods sites; do
+        link_to "$ZENDO_USER/current/$k.css" "$CHROME/kit/$k.css"
+      done
+      for p in "$CHROME/kit"/*; do # ссылки на то, чего больше нет в базе
+        if [ -L "$p" ] && [ ! -e "$p" ]; then rm "$p"; fi
+      done
+      ;;
+    *) link_to "$src" "$CHROME/$name" ;;
+  esac
+done
+link_to "$ZENDO_USER" "$CHROME/user"
+
+# ---- user.js: база, потом личные настройки (последнее значение побеждает)
+
+USERJS="$PROFILE/user.js"
+tmp="$USERJS.tmp.$$"
+{
+  printf '%s — руками не правь.\n' "$SYNC_MARK"
+  printf '// База: %s\n// Личное: %s (идёт ниже и перебивает базу)\n\n' "$KIT_PROFILE_SRC/user.js" "$ZENDO_USER/user.js"
+  cat "$KIT_PROFILE_SRC/user.js"
+  printf '\n// ==== %s ====\n\n' "$ZENDO_USER/user.js"
+  cat "$ZENDO_USER/user.js" 2>/dev/null || true
+} > "$tmp"
+if [ -e "$USERJS" ] && ! is_ours "$USERJS"; then
+  rm -f "$tmp"
+  warn "skipped user.js: not created by this project (bin/install moves it to a backup)"
+elif [ -f "$USERJS" ] && [ ! -L "$USERJS" ] && cmp -s "$tmp" "$USERJS"; then
+  rm -f "$tmp"
+else
+  rm -f "$USERJS" # раньше здесь была ссылка на profile/user.js
+  mv "$tmp" "$USERJS"
+  say "user.js rebuilt (applies after a Zen restart)"
+fi
+
+say "Profile is in sync: $PROFILE"

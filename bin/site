@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Стили для отдельных сайтов: profile/chrome/kit/sites/*.css и свои в $ZENDO_USER/sites/
+#   bin/site                 — список (● включено)
+#   bin/site on <имя> [...]  — включить
+#   bin/site off <имя> [...] — выключить
+source "$(dirname "$0")/_lib.sh"
+TOGGLE_KIND=sites
+TOGGLE_CMD=site
+TOGGLE_TITLE="Site styles"
+source "$(dirname "$0")/_toggle.sh"
+toggle_main "$@"

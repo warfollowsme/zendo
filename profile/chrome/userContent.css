@@ -1,0 +1,13 @@
+/*
+ * userContent.css — стили для веб-страниц и встроенных страниц (about:...).
+ *
+ * Стили для конкретных сайтов лежат в kit/sites/ и ~/.config/zendo/sites/,
+ * включаются через bin/site on|off <имя> (пишет current/sites.css).
+ * Каждый такой файл оборачивает правила в @-moz-document domain("...").
+ * Личные мелкие правки — ~/.config/zendo/userContent.css.
+ *
+ * Со скриптами всё это подключает JS/kit-live-css.sys.mjs — сразу, без
+ * перезапуска, — и импорты ниже отключаются (см. userChrome.css).
+ */
+@import url("kit/sites.css") not -moz-pref("kit.css.live");
+@import url("user/userContent.css") not -moz-pref("kit.css.live");

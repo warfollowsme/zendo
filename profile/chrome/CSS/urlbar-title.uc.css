@@ -1,0 +1,34 @@
+/* ==UserScript==
+// @name           Address bar: site title styles
+// @description    Look of the page title shown in the address bar (JS/urlbar-title.uc.js)
+// ==/UserScript== */
+
+/* Подпись лежит поверх поля адреса тем же шрифтом и отступами; поле под ней
+   прозрачное, но остаётся на месте — по клику ничего не сдвигается. */
+.urlbar-input-box {
+  position: relative;
+}
+
+#kit-urlbar-title {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  padding-inline: var(--urlbar-input-padding-start, 0px) 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  color: var(--toolbar-field-color, inherit);
+  font: inherit;
+}
+
+#urlbar:not([focused], [breakout-extend])[pageproxystate="valid"] .urlbar-input-box[kit-has-title] {
+  & #kit-urlbar-title {
+    display: flex;
+  }
+
+  & #urlbar-input {
+    opacity: 0;
+  }
+}

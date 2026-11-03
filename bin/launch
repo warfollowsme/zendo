@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Запуск Zen со всем, что нужно проекту. Его вызывает Zendo.app (bin/app).
+#   bin/launch   — проверить и открыть Zen
+#
+# Перед запуском:
+#   - загрузчик скриптов (fx-autoconfig) на месте в программе Zen — обновление
+#     Zen его стирает, тогда кладём заново и чистим кэш скриптов;
+#   - профиль Zen подключён к этой папке — если проект переехал или ссылки
+#     сломаны, переподключаем через bin/install;
+#   - профиль собран из базы и личного слоя (bin/sync): новые личные файлы
+#     и правки user.js попадают в профиль.
+# Если Zen уже открыт, просто показывает его. Журнал — .kit/launch.log.
+source "$(dirname "$0")/_lib.sh"
+
+mkdir -p "$KIT_STATE"
+exec >>"$KIT_STATE/launch.log" 2>&1
+printf '\n== %s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+
+alert() {
+  /usr/bin/osascript -e 'on run argv' -e 'display alert "Zendo" message (item 1 of argv) as warning' -e 'end run' "$1" >/dev/null 2>&1 || true
+}
+
+RES="$(detect_app_resources)" || { alert "Zen не найден в /Applications. Установи Zen: https://zen-browser.app"; exit 1; }
+APP="$(cd "$RES/../.." && pwd -P)"
+
+if zen_running; then
+  info "Zen already running"
+  "$KIT_ROOT/bin/sync" --quiet || true
+  exec /usr/bin/open -a "$APP"
+fi
+
+# Загрузчик скриптов в программе Zen.
+if ! cmp -s "$RES/config.js" "$KIT_ROOT/program/config.js" ||
+   ! cmp -s "$RES/defaults/pref/config-prefs.js" "$KIT_ROOT/program/defaults/pref/config-prefs.js"; then
+  info "Script loader missing in $RES (Zen updated?) — reinstalling"
+  if ! "$KIT_ROOT/bin/install" --autoconfig; then
+    alert "Не удалось вернуть загрузчик скриптов в Zen (подробности — $KIT_STATE/launch.log). Zen откроется без скриптов."
+  fi
+fi
+
+# Профиль подключён к этой папке.
+PROFILE="$(active_profile)" || PROFILE=""
+if [ -n "$PROFILE" ] && { [ "$(readlink "$PROFILE/chrome/userChrome.css" 2>/dev/null)" != "$KIT_CHROME_SRC/userChrome.css" ] ||
+                          [ "$(cat "$KIT_STATE/profile" 2>/dev/null)" != "$PROFILE" ]; }; then
+  info "Profile is not linked to $KIT_ROOT — running bin/install"
+  "$KIT_ROOT/bin/install" || alert "Не удалось подключить профиль Zen к $KIT_ROOT (подробности — $KIT_STATE/launch.log)."
+else
+  "$KIT_ROOT/bin/sync" || alert "Не удалось собрать профиль (подробности — $KIT_STATE/launch.log)."
+fi
+
+exec /usr/bin/open -a "$APP"

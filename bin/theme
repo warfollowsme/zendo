@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Темы: profile/chrome/kit/themes/*.css и свои в $ZENDO_USER/themes/
+#   bin/theme               — список тем (● текущая)
+#   bin/theme <имя>         — включить тему
+#   bin/theme zen-default   — вернуть стандартные цвета Zen
+source "$(dirname "$0")/_lib.sh"
+
+CURRENT_FILE="$ZENDO_USER/current/theme.css"
+
+current_theme() {
+  local t
+  t="$(sed -n 's|^/\* theme: \(.*\) \*/$|\1|p' "$CURRENT_FILE" 2>/dev/null | head -n 1)"
+  printf '%s\n' "${t:-zen-default}"
+}
+
+list_themes() {
+  local cur f name title scheme mark
+  cur="$(current_theme)"
+  info "${C_BOLD}Themes${C_RESET}"
+  if [ "$cur" = "zen-default" ]; then mark="${C_GREEN}●${C_RESET}"; else mark="${C_DIM}○${C_RESET}"; fi
+  printf '  %s %-20s %s\n' "$mark" "zen-default" "Default Zen colors (from workspace settings)"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    f="$(kit_file themes "$name")"
+    title="$(css_meta "$f" name)"
+    scheme="$(css_meta "$f" scheme)"
+    if [ "$name" = "$cur" ]; then mark="${C_GREEN}●${C_RESET}"; else mark="${C_DIM}○${C_RESET}"; fi
+    case "$f" in "$ZENDO_USER"/*) scheme="${scheme:-?}, personal" ;; esac
+    printf '  %s %-20s %s %s(%s)%s\n' "$mark" "$name" "${title:-$name}" "$C_DIM" "${scheme:-?}" "$C_RESET"
+  done <<EOF
+$(kit_names themes)
+EOF
+}
+
+set_theme() {
+  local name="${1%.css}" tmp
+  mkdir -p "$(dirname "$CURRENT_FILE")"
+  tmp="$CURRENT_FILE.tmp.$$"
+  if [ "$name" = "zen-default" ]; then
+    {
+      printf '/* Сгенерировано bin/theme — руками не правь. */\n'
+      printf '/* theme: zen-default */\n'
+      printf '/* Тема Zen по умолчанию: цвета берутся из настроек пространства в самом Zen. */\n'
+    } > "$tmp"
+  else
+    kit_file themes "$name" >/dev/null || die "Theme not found: $name (list: bin/theme)"
+    "$KIT_ROOT/bin/sync" --quiet || true # новая личная тема — в профиль
+    {
+      printf '/* Сгенерировано bin/theme — руками не правь. */\n'
+      printf '/* theme: %s */\n' "$name"
+      printf '@import url("theme-engine.css");\n'
+      printf '@import url("themes/%s.css");\n' "$name"
+    } > "$tmp"
+  fi
+  mv "$tmp" "$CURRENT_FILE"
+  ok "Theme: $name"
+}
+
+case "${1:-}" in
+  ""|list|ls) list_themes ;;
+  current) current_theme ;;
+  -h|--help|help)
+    info "bin/theme             — list themes"
+    info "bin/theme <name>      — enable a theme"
+    info "bin/theme current     — current theme name"
+    info "bin/theme zen-default — restore Zen colors"
+    ;;
+  *) set_theme "$1" ;;
+esac

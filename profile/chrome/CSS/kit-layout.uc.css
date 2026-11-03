@@ -1,0 +1,1035 @@
+/* ==UserScript==
+// @name           Layout: styles
+// @description    Window grid, edge toolbars and island side panels (JS/kit-layout.uc.js)
+// ==/UserScript== */
+
+/* Все правила — только когда скрипт раскладки работает (:root[kit-layout]).
+   Выключили скрипт в Tools → userScripts — Zen выглядит как обычно. */
+
+:root[kit-layout] {
+  --kit-strip-w: 44px;
+  --kit-gap: var(--zen-element-separation, 8px);
+  --kit-radius: var(--zen-native-inner-radius, var(--zen-border-radius, 8px));
+  --kit-island-bg: color-mix(in srgb, var(--zen-colors-tertiary, #1d1d26) 92%, transparent);
+  --kit-island-line: var(--zen-colors-border, rgba(128, 128, 128, 0.25));
+  --kit-accent: var(--theme-accent, var(--zen-primary-color, AccentColor));
+}
+
+/* ---------- сетка окна ---------- */
+
+:root[kit-layout] #browser {
+  display: grid !important;
+  /* ровно в окно: без явной высоты строки сетки растут по содержимому
+     (длинные списки истории и загрузок) и нижние зоны уезжают за край */
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 0 !important;
+  overflow: hidden;
+  grid-template-columns:
+    var(--kit-strip-w) var(--kit-left-w, 0px) minmax(0, 1fr) var(--kit-right-w, 0px) var(--kit-strip-w);
+  grid-template-rows:
+    auto minmax(0, var(--kit-row-1, 1fr)) minmax(0, var(--kit-row-2, 0fr)) minmax(0, var(--kit-row-3, 0fr));
+}
+
+/* обёртка Zen вокруг адреса и сайта растворяется: её дети — ячейки сетки */
+:root[kit-layout] #zen-appcontent-wrapper {
+  display: contents !important;
+}
+
+/* раскрытая адресная строка — на своём месте, а не у верхнего края окна
+   (см. setupCenter в kit-layout.uc.js) */
+:root[kit-layout] #urlbar[breakout-extend]:not([in-page]) {
+  margin-top: var(--kit-navbar-top, 0px) !important;
+}
+
+/* верхняя полоса: светофор macOS и пространства цифрами */
+:root[kit-layout] #kit-titlebar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding-inline: 12px 4px;
+  -moz-window-dragging: drag;
+}
+
+@media (-moz-platform: macos) {
+  :root[kit-layout] #kit-titlebar {
+    padding-inline-start: 84px;
+  }
+}
+
+:root[kit-layout] #kit-window-buttons {
+  position: absolute;
+  inset-inline-start: 6px;
+  top: 10px;
+}
+
+#kit-workspaces {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -moz-window-dragging: no-drag;
+}
+
+.kit-workspace {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--toolbar-color, currentColor);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.45;
+
+  &:hover {
+    opacity: 0.8;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+
+  &[active] {
+    opacity: 1;
+    color: var(--zen-accent-button-color, var(--kit-accent));
+    background: color-mix(in srgb, currentColor 12%, transparent);
+  }
+}
+
+/* иконка пространства — в той же ячейке, что и номер, одного размера */
+.kit-workspace-emoji {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.kit-workspace-icon {
+  width: 14px;
+  height: 14px;
+  -moz-context-properties: fill, fill-opacity;
+  fill: currentColor;
+}
+
+/* Create Space — в конце переключателя */
+.kit-workspace-create::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  background: currentColor;
+  mask: url("chrome://browser/skin/zen-icons/duplicate-tab.svg") center / contain no-repeat;
+}
+
+/* Зазор между центром и стороной — только когда на этой стороне открыта
+   панель; закрыта — центр стоит вплотную к тулбару, как и панели. */
+:root[kit-layout] #browser {
+  --kit-gap-left: 0px;
+  --kit-gap-right: 0px;
+}
+
+:root[kit-layout] #browser[kit-left-open] {
+  --kit-gap-left: var(--kit-gap);
+}
+
+:root[kit-layout] #browser[kit-right-open] {
+  --kit-gap-right: var(--kit-gap);
+}
+
+/* навигация и адресная строка — в верхней полосе, занимают всё место справа
+   от пространств */
+:root[kit-layout] #zen-appcontent-navbar-wrapper {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+/* в центре — только сайт; зазор до стороны — только если на ней открыта панель */
+:root[kit-layout] #zen-tabbox-wrapper {
+  grid-column: 3;
+  grid-row: 2 / 5;
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 var(--kit-gap-right) var(--kit-gap) var(--kit-gap-left) !important;
+}
+
+/* разделённый экран Zen: между панелями — тот же зазор, что между островами */
+:root[kit-layout] #tabbrowser-tabbox {
+  --zen-split-row-gap: var(--kit-gap) !important;
+  --zen-split-column-gap: var(--kit-gap) !important;
+}
+
+/* кнопка Split (меню: справа / слева / сверху / снизу) — иконка Zen split */
+#kit-split {
+  list-style-image: url("chrome://browser/skin/zen-icons/split.svg");
+}
+
+/* иконки пунктов меню Split — цветом текста меню */
+#kit-split-menu menuitem {
+  /* иконки — resources/kit-layout/icons/split-*.svg с context-fill/stroke */
+  -moz-context-properties: fill, fill-opacity, stroke;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+/* Группа страницы по центру окна: назад/вперёд/обновить — адресная строка —
+   зум, полный экран, Split. Свободное место делят auto-поля по краям группы;
+   разницу в ширине соседей (пространства слева, расширения справа)
+   компенсирует отступ, который считает setupNavBalance() в kit-layout.uc.js.
+   Расширения и меню — у правого края. */
+:root[kit-layout] #urlbar-container {
+  max-width: min(760px, 40vw) !important;
+}
+
+:root[kit-layout] #back-button {
+  margin-inline-start: auto !important;
+}
+
+:root[kit-layout] #kit-split {
+  margin-inline-end: auto !important;
+}
+
+:root[kit-layout] #nav-bar-customization-target {
+  padding-inline: var(--kit-nav-pad-start, 0px) var(--kit-nav-pad-end, 0px) !important;
+}
+
+/* Закреплённые расширения (и всё после Split) — у правого края: отступ
+   справа нужен только для центровки группы страницы, а значки сдвигаем на
+   его ширину (translate раскладку не меняет — промежутки закрывает flex). */
+:root[kit-layout] #kit-split ~ * {
+  translate: var(--kit-nav-pad-end, 0px) 0 !important;
+}
+
+/* крестик в мини-меню панели разделённого экрана — рядом с кнопками Zen */
+.zen-view-splitter-header .kit-split-close {
+  list-style-image: url("chrome://browser/skin/zen-icons/close.svg");
+
+  & image {
+    width: 10px;
+    height: 10px;
+  }
+}
+
+/* ---------- тулбары ---------- */
+
+:root[kit-layout] .kit-strip {
+  grid-row: 2 / 5;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  padding-bottom: var(--kit-gap);
+}
+
+:root[kit-layout] #kit-strip-left {
+  grid-column: 1;
+}
+
+:root[kit-layout] #kit-strip-right {
+  grid-column: 5;
+}
+
+.kit-strip-spacer {
+  flex: 1;
+}
+
+.kit-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.kit-zone-bottom {
+  flex-direction: column-reverse; /* нижняя зона растёт снизу вверх */
+}
+
+.kit-zone[drop-target] {
+  background: color-mix(in srgb, var(--kit-accent) 14%, transparent);
+}
+
+/* Значки — в стиле вкладок «Библиотеки» Zen (zen-library.css → .zen-library-tab) */
+.kit-tool-button,
+.kit-icon-button {
+  appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--zen-accent-button-color, var(--kit-accent));
+  --zen-library-sprite-size: 22px;
+}
+
+.kit-icon-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.kit-mask-icon::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  mask: var(--kit-icon) center / contain no-repeat;
+}
+
+.kit-icon-button::before {
+  width: 14px;
+  height: 14px;
+}
+
+.kit-tool-button:hover,
+.kit-icon-button:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  opacity: 1;
+}
+
+.kit-tool-button[active] {
+  background: color-mix(in srgb, var(--toolbar-color, currentColor) 12%, transparent);
+}
+
+.kit-tool-button:hover:active {
+  transform: scale(0.94);
+}
+
+/* анимированная иконка раздела «Библиотеки»: кадр спрайта в окошке */
+.kit-sprite {
+  display: block;
+  width: var(--zen-library-sprite-size);
+  height: var(--zen-library-sprite-size);
+  overflow: clip;
+
+  & > .zen-library-tab-icon-image {
+    display: block;
+  }
+}
+
+.kit-tool-button:not([active]) .zen-library-tab-icon-image {
+  fill: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kit-tool-button[animate] .zen-library-tab-icon-image {
+    animation: zen-library-sprite-play 0.583s steps(36, jump-none);
+  }
+}
+
+.kit-tool-button[dragging] {
+  opacity: 0.25;
+}
+
+.kit-drag-ghost {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 1;
+  background: var(--kit-island-bg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.kit-drop-marker {
+  position: fixed;
+  z-index: 10000;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--kit-accent);
+  pointer-events: none;
+}
+
+:root[kit-dragging-tool] * {
+  cursor: grabbing !important;
+}
+
+/* ---------- панели-острова ---------- */
+
+:root[kit-layout] .kit-placed {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  margin-bottom: var(--kit-gap);
+  border-radius: var(--kit-radius);
+  background: var(--kit-island-bg);
+  box-shadow: 0 0 0 1px var(--kit-island-line), 0 2px 10px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+:root[kit-layout] .kit-placed:not([kit-slot]),
+:root[kit-layout] #navigator-toolbox:not([kit-slot]) {
+  display: none !important;
+}
+
+:root[kit-layout] .kit-placed[kit-slot^="left"] {
+  grid-column: 2;
+}
+
+:root[kit-layout] .kit-placed[kit-slot^="right"] {
+  grid-column: 4;
+}
+
+:root[kit-layout] .kit-placed[kit-slot$="full"] {
+  grid-row: 2 / 5;
+}
+
+:root[kit-layout] .kit-placed[kit-slot="left-top"] {
+  grid-row: 2 / var(--kit-left-line);
+  margin-bottom: calc(var(--kit-gap) / 2);
+}
+
+:root[kit-layout] .kit-placed[kit-slot="left-bottom"] {
+  grid-row: var(--kit-left-line) / 5;
+  margin-top: calc(var(--kit-gap) / 2);
+}
+
+:root[kit-layout] .kit-placed[kit-slot="right-top"] {
+  grid-row: 2 / var(--kit-right-line);
+  margin-bottom: calc(var(--kit-gap) / 2);
+}
+
+:root[kit-layout] .kit-placed[kit-slot="right-bottom"] {
+  grid-row: var(--kit-right-line) / 5;
+  margin-top: calc(var(--kit-gap) / 2);
+}
+
+.kit-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.kit-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 6px 0 12px;
+}
+
+/* как подпись пространства в панели вкладок Zen (.zen-current-workspace-indicator-name) */
+.kit-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--toolbar-color, currentColor) 63%, transparent);
+  white-space: nowrap;
+}
+
+.kit-panel-actions {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kit-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+/* разделы «Библиотеки» Zen: её переменные и снятое ограничение ширины */
+.kit-library-body {
+  --zen-library-pill-bg: color-mix(in srgb, currentColor 7%, transparent);
+  --zen-library-pill-hover-bg: color-mix(in srgb, currentColor 12%, transparent);
+  --zen-library-radius: 12px;
+  overflow: hidden;
+  color: var(--toolbar-color);
+}
+
+.kit-library-body > .zen-library-section {
+  max-width: none !important;
+  container-type: inline-size;
+}
+
+/* Spaces: в «Библиотеке» карточка фиксированной ширины (242px) — в панели
+   она во всю ширину, пространства листаются по одному */
+.kit-library-body .zen-library-spaces {
+  --zen-library-space-width: calc(100cqw - 24px);
+  --zen-library-space-gap: 12px;
+  padding: 12px;
+}
+
+.kit-panel-frame {
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+}
+
+/* ---------- панель вкладок Zen как остров ---------- */
+
+:root[kit-layout] #navigator-toolbox[kit-slot] {
+  /* Zen делает фон своей панели прозрачным — возвращаем фон острова */
+  background: var(--kit-island-bg) !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 0 4px !important;
+}
+
+:root[kit-layout] #navigator-toolbox > .kit-panel-header {
+  margin: 0 -4px;
+}
+
+/* Нижняя полоса панели вкладок (переключатель пространств, «+», «Библиотека»)
+   не нужна: пространства и Create Space — в верхней полосе, Create Folder —
+   под папками, новая вкладка — в списке вкладок. */
+:root[kit-layout] #zen-sidebar-foot-buttons,
+:root[kit-layout] #zen-library-button,
+:root[kit-layout] #zen-sidebar-top-buttons,
+:root[kit-layout] #zen-sidebar-splitter,
+:root[kit-layout] #kit-ai-sidebar-button {
+  display: none !important;
+}
+
+/* ---------- изменение размеров ---------- */
+
+.kit-resize {
+  display: none;
+  position: relative;
+  z-index: 5;
+}
+
+:root[kit-layout] #browser[kit-left-open] > .kit-resize-left,
+:root[kit-layout] #browser[kit-right-open] > .kit-resize-right {
+  display: block;
+  grid-row: 2 / 5;
+  width: var(--kit-gap);
+  cursor: ew-resize;
+}
+
+/* ручки ширины — в зазоре между панелью и сайтом */
+:root[kit-layout] .kit-resize-left {
+  grid-column: 3;
+  justify-self: start;
+}
+
+:root[kit-layout] .kit-resize-right {
+  grid-column: 3;
+  justify-self: end;
+}
+
+:root[kit-layout] #browser[kit-left-split] > .kit-split-left,
+:root[kit-layout] #browser[kit-right-split] > .kit-split-right {
+  display: block;
+  align-self: start;
+  height: var(--kit-gap);
+  margin-top: calc(var(--kit-gap) / -2);
+  cursor: ns-resize;
+}
+
+:root[kit-layout] .kit-split-left {
+  grid-column: 2;
+  grid-row: var(--kit-left-line) / span 1;
+}
+
+:root[kit-layout] .kit-split-right {
+  grid-column: 4;
+  grid-row: var(--kit-right-line) / span 1;
+}
+
+/* ---------- панели Settings и Develop — в манере разделов «Библиотеки» ---------- */
+
+.kit-list-body {
+  --zen-library-pill-bg: color-mix(in srgb, currentColor 7%, transparent);
+  --zen-library-pill-hover-bg: color-mix(in srgb, currentColor 12%, transparent);
+  padding: 4px 10px 12px;
+  font-size: 14px;
+  color: var(--toolbar-color);
+}
+
+.kit-group h3 {
+  margin: 12px 8px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+/* строка-переключатель: галочка, затем название (как в настройках Zen) */
+.kit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+
+  &:hover {
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+
+.kit-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.kit-check {
+  appearance: none;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 40%, transparent);
+  background: transparent;
+
+  &::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    background: transparent;
+    mask: url("chrome://global/skin/icons/check.svg") center / contain no-repeat;
+  }
+
+  &:checked {
+    box-shadow: none;
+    background: var(--zen-primary-color, AccentColor);
+
+    &::before {
+      background: white;
+    }
+  }
+}
+
+/* выбор темы */
+.kit-select {
+  appearance: none;
+  display: block;
+  width: calc(100% - 16px);
+  margin: 2px 8px 4px;
+  padding: 7px 30px 7px 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--zen-library-pill-bg, color-mix(in srgb, currentColor 7%, transparent))
+    url("chrome://global/skin/icons/arrow-down-12.svg") right 12px center / 10px no-repeat;
+  -moz-context-properties: fill;
+  fill: currentColor;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+
+  &:hover {
+    background-color: var(--zen-library-pill-hover-bg, color-mix(in srgb, currentColor 12%, transparent));
+  }
+}
+
+.kit-row-hint {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.kit-pad {
+  padding: 0 12px 6px;
+}
+
+.kit-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 8px 4px;
+}
+
+.kit-button {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  padding: 7px 12px;
+  background: var(--zen-library-pill-bg, color-mix(in srgb, currentColor 7%, transparent));
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+
+  &:hover {
+    background: var(--zen-library-pill-hover-bg, color-mix(in srgb, currentColor 12%, transparent));
+  }
+
+  /* как активный фильтр в «Библиотеке» */
+  &[selected] {
+    background: color-mix(in srgb, currentColor 20%, transparent);
+    font-weight: 700;
+  }
+}
+
+.kit-status:not(:empty) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 8px 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.kit-empty,
+.kit-note {
+  padding: 16px 12px;
+  text-align: center;
+  opacity: 0.6;
+}
+
+.kit-pre {
+  margin: 6px 8px 0;
+  padding: 10px 12px;
+  max-height: 240px;
+  overflow: auto;
+  border-radius: 12px;
+  background: var(--zen-library-pill-bg);
+  font: inherit;
+  font-size: 12px;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.kit-log-entry {
+  margin: 0 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--kit-island-line);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+
+  &[level="error"] {
+    color: #ff6b6b;
+  }
+
+  &[level="warning"] {
+    color: #f0b400;
+  }
+}
+
+/* ---------- полноэкранный режим сайта (видео, игры) ---------- */
+
+/* Firefox ставит :root[inDOMFullscreen] и прячет свои панели — прячем и
+   раскладку: тулбары, панели, полосу адреса; сайт — на всё окно. */
+:root[kit-layout][inDOMFullscreen="true"] {
+  & :is(.kit-strip, #kit-titlebar, .kit-placed, .kit-resize) {
+    display: none !important;
+  }
+
+  & #zen-tabbox-wrapper {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 / -1 !important;
+    margin: 0 !important;
+  }
+}
+
+/* ---------- Create Folder под папками в панели вкладок ---------- */
+
+/* Строка лежит первой в контейнере линии Clear: контейнер растёт по высоте
+   (у Zen он 22px с overflow: hidden), линия с Clear переносится ниже. Когда Zen
+   прячет линию (нет незакреплённых вкладок) — Create Folder остаётся. */
+:root[kit-layout] .pinned-tabs-container-separator:has(> .kit-create-folder) {
+  display: flex !important;
+  flex-wrap: wrap;
+  height: auto !important;
+  min-height: 22px;
+  overflow: visible !important;
+  opacity: 1 !important;
+  padding-inline: 0 !important;
+
+  /* у кнопок на линии Zen прячет подпись и иконку до наведения, рисует
+     вместо фона полоску и уменьшает шрифт — Create Folder это не нужно */
+  & > .kit-create-folder {
+    order: -1;
+    flex: 0 0 calc(100% - 4px);
+    margin-inline: 2px !important; /* у раздела свой отступ 6px: итог как у New Tab */
+    pointer-events: auto !important;
+    background: transparent !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+
+    & .toolbarbutton-icon,
+    & .toolbarbutton-text {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
+    & .toolbarbutton-icon {
+      width: 16px !important;
+    }
+
+    &:hover {
+      background: color-mix(in srgb, currentColor 8%, transparent) !important;
+    }
+  }
+
+  /* вторая строка: линия и Clear, как у Zen (строка 22px, линия 1px) */
+  & > toolbarbutton:not(.kit-create-folder) {
+    height: 22px;
+  }
+
+  & > toolbarseparator {
+    flex: 1;
+    height: 1px !important;
+    align-self: center;
+    margin-inline-start: 9px !important;
+  }
+
+  .zen-workspace-pinned-tabs-section[hide-separator] & {
+    min-height: 0;
+
+    & > :not(.kit-create-folder) {
+      display: none !important;
+    }
+  }
+}
+
+/* как строка «New Tab» Zen (#tabs-newtab-button): те же отступы и приглушённость */
+:root[kit-layout] .kit-create-folder {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 2px 8px;
+  padding: 0 8px;
+  min-height: 36px;
+  border-radius: 14px;
+  color: inherit;
+  opacity: 0.7;
+
+  & .toolbarbutton-icon {
+    width: 16px;
+    height: 16px;
+    -moz-context-properties: fill, fill-opacity;
+    fill: currentColor;
+  }
+
+  & .toolbarbutton-text {
+    display: flex !important;
+    padding-inline-start: 7.5px;
+    font-size: 13.75px;
+  }
+
+  &:hover {
+    opacity: 1;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+}
+
+/* Boosts: штатный поиск сверху; строки и действия — как в Extensions. */
+:root[kit-layout] #kit-panel-boosts .zen-library-search-results {
+  padding: 8px !important;
+}
+
+:root[kit-layout] #kit-panel-boosts .zen-library-group {
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+:root[kit-layout] #kit-panel-boosts .kit-boosts-row {
+  position: relative !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-height: 38px !important;
+  margin-bottom: 4px !important;
+  padding: 7px 88px 7px 12px !important;
+  gap: 10px !important;
+  border-radius: 12px !important;
+  background: var(--zen-library-pill-bg) !important;
+  font-size: 13px !important;
+  contain: none !important;
+  content-visibility: visible !important;
+}
+
+:root[kit-layout] #kit-panel-boosts .kit-boosts-row:hover {
+  background: var(--zen-library-pill-hover-bg) !important;
+}
+
+:root[kit-layout] #kit-panel-boosts .zen-library-boost-icon {
+  flex-shrink: 0 !important;
+  width: 24px !important;
+  height: 24px !important;
+  margin: 0 !important;
+}
+
+:root[kit-layout] #kit-panel-boosts .zen-library-boost-icon::before,
+:root[kit-layout] #kit-panel-boosts .zen-library-row-subtitle,
+:root[kit-layout] #kit-panel-boosts .zen-library-row-actions {
+  display: none !important;
+}
+
+:root[kit-layout] #kit-panel-boosts .zen-library-boost-icon img {
+  width: 24px !important;
+  height: 24px !important;
+  object-fit: contain !important;
+  mask: none !important;
+}
+
+:root[kit-layout] #kit-panel-boosts .zen-library-row-title {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+:root[kit-layout] .kit-boosts-control {
+  position: absolute !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 1 !important;
+  font: inherit !important;
+}
+
+/* иконки Zen бывают нарисованы обводкой цвета context-fill (boost.svg) —
+   маской такая выходит прозрачной, поэтому рисуем картинкой с context-paint */
+:root[kit-layout] .kit-boosts-control::before {
+  mask: none !important;
+  background: var(--kit-icon) center / contain no-repeat !important;
+  -moz-context-properties: fill, fill-opacity, stroke, stroke-opacity;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+:root[kit-layout] .kit-boosts-control[data-action="edit"] {
+  inset-inline-end: 56px !important;
+}
+
+:root[kit-layout] .kit-boosts-control[data-action="toggle"] {
+  inset-inline-end: 30px !important;
+}
+
+:root[kit-layout] .kit-boosts-control[data-action="remove"] {
+  inset-inline-end: 4px !important;
+}
+
+:root[kit-layout] .kit-boosts-control[aria-pressed="true"] {
+  color: var(--zen-accent-button-color, var(--zen-primary-color)) !important;
+  background: color-mix(in srgb, currentColor 14%, transparent) !important;
+  opacity: 1 !important;
+}
+
+:root[kit-layout] .kit-boosts-control:disabled {
+  opacity: 0.5 !important;
+  pointer-events: none !important;
+}
+
+:root[kit-layout] #kit-boosts-status:not(:empty) {
+  padding: 12px !important;
+}
+
+/* ---------- Media: карточки (вид Zen), список, таблица ---------- */
+
+.kit-media-views {
+  display: flex;
+  gap: 2px;
+  margin-inline-end: 4px;
+
+  & .kit-active {
+    opacity: 1 !important;
+    background: color-mix(in srgb, currentColor 12%, transparent) !important;
+  }
+}
+
+/* подписи нужны только списку и таблице */
+:root[kit-layout] :is(.kit-media-name, .kit-media-type) {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+:root[kit-layout] .kit-library-body:is([data-kit-media-view="list"], [data-kit-media-view="table"]) {
+  & .zen-library-media-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 2px !important;
+  }
+
+  & .zen-library-media-item {
+    display: grid !important;
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 14px !important;
+    aspect-ratio: auto !important;
+    padding: 10px 12px !important;
+    border-radius: 16px !important;
+    background: transparent !important;
+
+    &:hover {
+      background: color-mix(in srgb, currentColor 10%, transparent) !important;
+      scale: 1 !important;
+    }
+  }
+
+  & .zen-library-media-frame {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  & .zen-library-media-thumb {
+    border-radius: 4px !important;
+    box-shadow: none !important;
+  }
+
+  & .zen-library-media-play {
+    display: none !important;
+  }
+
+  /* как .zen-library-row-title */
+  & .kit-media-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+  }
+}
+
+:root[kit-layout] .kit-library-body[data-kit-media-view="table"] {
+  & :is(.zen-library-media-item, .kit-media-head) {
+    display: grid !important;
+    grid-template-columns: 32px minmax(0, 1fr) 56px !important;
+    align-items: center !important;
+    gap: 14px !important;
+  }
+
+  & .kit-media-type {
+    display: block;
+    font-size: 12px;
+    opacity: 0.6;
+  }
+
+  & .zen-library-media-item {
+    border-radius: 0 !important;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+  }
+
+  & .kit-media-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.6;
+    background: var(--kit-island-bg);
+  }
+}

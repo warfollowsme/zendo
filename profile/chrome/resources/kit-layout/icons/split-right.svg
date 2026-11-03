@@ -1,0 +1,9 @@
+<!-- по мотивам Material Symbols Light add-column-left-outline-rounded (Apache 2.0), повёрнута к стороне новой панели -->
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+  <g transform="rotate(180 12 12)">
+    <rect x="2.75" y="3.75" width="18.5" height="16.5" rx="3" fill="none" stroke="context-stroke" stroke-width="1.5"/>
+    <path d="M5.75 3.75H11.25v16.5H5.75a3 3 0 0 1-3-3V6.75a3 3 0 0 1 3-3Z" fill="context-fill" fill-opacity="0.2"/>
+    <path d="M11.25 3.75v16.5" fill="none" stroke="context-stroke" stroke-width="1.5"/>
+    <path d="M7 9.6v4.8M4.6 12h4.8" fill="none" stroke="context-stroke" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

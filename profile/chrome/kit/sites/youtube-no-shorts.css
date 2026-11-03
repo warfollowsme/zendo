@@ -1,0 +1,12 @@
+/*
+ * @name YouTube without Shorts
+ * @description Hides Shorts shelves in the feed and the Shorts item in the youtube.com side menu.
+ */
+@-moz-document domain("youtube.com") {
+  ytd-reel-shelf-renderer,
+  ytd-rich-shelf-renderer[is-shorts],
+  ytd-guide-entry-renderer:has(a[title="Shorts"]),
+  ytd-mini-guide-entry-renderer[aria-label="Shorts"] {
+    display: none !important;
+  }
+}

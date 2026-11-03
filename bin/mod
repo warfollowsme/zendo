@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Моды интерфейса браузера: profile/chrome/kit/mods/*.css и свои в $ZENDO_USER/mods/
+#   bin/mod                 — список (● включено)
+#   bin/mod on <имя> [...]  — включить
+#   bin/mod off <имя> [...] — выключить
+source "$(dirname "$0")/_lib.sh"
+TOGGLE_KIND=mods
+TOGGLE_CMD=mod
+TOGGLE_TITLE="Interface mods"
+source "$(dirname "$0")/_toggle.sh"
+toggle_main "$@"

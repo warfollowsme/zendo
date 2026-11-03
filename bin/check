@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# Быстрая проверка базы и личного слоя без запуска Zen:
+#   - все @import указывают на существующие файлы;
+#   - у тем есть @name, @scheme и все 7 переменных --theme-*;
+#   - у модов и стилей сайтов есть @name и @description;
+#   - фигурные скобки в CSS сбалансированы;
+#   - JS-скрипты синтаксически корректны (если установлен node).
+source "$(dirname "$0")/_lib.sh"
+
+errors=0
+fail() { printf '%s✗%s %s\n' "$C_RED" "$C_RESET" "$*"; errors=$((errors + 1)); }
+
+rel() {
+  case "$1" in
+    "$KIT_ROOT"/*) printf '%s\n' "${1#"$KIT_ROOT"/}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+# Куда ведёт @import: пути в userChrome.css и current/*.css считаются от
+# папок профиля, которые собирает bin/sync (kit/ и user/).
+import_target() {
+  local css="$1" target="$2" kind
+  case "$css" in
+    "$KIT_CHROME_SRC/userChrome.css"|"$KIT_CHROME_SRC/userContent.css")
+      case "$target" in
+        kit/theme.css|kit/mods.css|kit/sites.css) target="${target#kit/}"; printf '%s\n' "$ZENDO_USER/current/$target" ;;
+        user/*) printf '%s\n' "$ZENDO_USER/${target#user/}" ;;
+        *) printf '%s\n' "$KIT_CHROME_SRC/$target" ;;
+      esac ;;
+    "$ZENDO_USER/current/"*)
+      case "$target" in
+        themes/*|mods/*|sites/*)
+          kind="${target%%/*}"; target="${target#*/}"
+          kit_file "$kind" "${target%.css}" || printf '%s\n' "$ZENDO_USER/$kind/$target" ;;
+        *) printf '%s\n' "$KIT_KIT_DIR/$target" ;;
+      esac ;;
+    *) printf '%s\n' "$(dirname "$css")/$target" ;;
+  esac
+}
+
+css_files() {
+  find "$KIT_CHROME_SRC" -name '*.css' -not -name '._*' -not -path '*/utils/*'
+  [ -d "$ZENDO_USER" ] && find "$ZENDO_USER" -name '*.css' -not -name '._*' -not -path '*/.git/*'
+  return 0
+}
+
+# 1. @import и скобки
+while IFS= read -r css; do
+  [ -n "$css" ] || continue
+  while IFS= read -r target; do
+    [ -n "$target" ] || continue
+    t="$(import_target "$css" "$target")"
+    case "$t" in "$ZENDO_USER"/*) [ -d "$ZENDO_USER" ] || continue ;; esac # ещё не установлен
+    [ -f "$t" ] || fail "$(rel "$css"): @import \"$target\" — file not found"
+  done <<EOF
+$(sed -n 's/^@import url("\([^"]*\)")[^;]*;.*$/\1/p' "$css")
+EOF
+  opens="$(tr -cd '{' < "$css" | wc -c | tr -d ' ')"
+  closes="$(tr -cd '}' < "$css" | wc -c | tr -d ' ')"
+  [ "$opens" = "$closes" ] || fail "$(rel "$css"): unbalanced braces: { $opens, } $closes"
+done <<EOF
+$(css_files | sort)
+EOF
+
+# 2. Темы
+for f in "$KIT_KIT_DIR"/themes/*.css "$ZENDO_USER"/themes/*.css; do
+  [ -e "$f" ] || continue
+  [ -n "$(css_meta "$f" name)" ] || fail "$(rel "$f"): missing @name"
+  case "$(css_meta "$f" scheme)" in
+    dark|light) ;;
+    *) fail "$(rel "$f"): @scheme must be dark or light" ;;
+  esac
+  for v in scheme bg surface fg muted accent border; do
+    grep -q -- "--theme-$v:" "$f" || fail "$(rel "$f"): missing --theme-$v"
+  done
+done
+
+# 3. Моды и сайты
+for f in "$KIT_KIT_DIR"/mods/*.css "$KIT_KIT_DIR"/sites/*.css "$ZENDO_USER"/mods/*.css "$ZENDO_USER"/sites/*.css; do
+  [ -e "$f" ] || continue
+  [ -n "$(css_meta "$f" name)" ] || fail "$(rel "$f"): missing @name"
+  [ -n "$(css_meta "$f" description)" ] || fail "$(rel "$f"): missing @description"
+done
+for f in "$KIT_KIT_DIR"/sites/*.css "$ZENDO_USER"/sites/*.css; do
+  [ -e "$f" ] || continue
+  grep -q '@-moz-document' "$f" || fail "$(rel "$f"): site rules must be inside @-moz-document"
+done
+
+# 4. JS
+js_checked=0
+if command -v node >/dev/null 2>&1; then
+  for f in "$KIT_CHROME_SRC"/JS/*.uc.js "$KIT_CHROME_SRC"/JS/*.uc.mjs "$KIT_CHROME_SRC"/JS/*.sys.mjs \
+           "$ZENDO_USER"/JS/*.uc.js "$ZENDO_USER"/JS/*.uc.mjs "$ZENDO_USER"/JS/*.sys.mjs; do
+    [ -e "$f" ] || continue
+    out="$(node --check "$f" 2>&1)" || fail "$(rel "$f"): $out"
+    js_checked=$((js_checked + 1))
+    grep -q '// ==UserScript==' "$f" || fail "$(rel "$f"): missing // ==UserScript== header"
+  done
+  # модули для скриптов (actor'ы и т.п.) — без заголовка, только синтаксис
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    out="$(node --check "$f" 2>&1)" || fail "$(rel "$f"): $out"
+    js_checked=$((js_checked + 1))
+  done <<EOF
+$(find "$KIT_CHROME_SRC/resources" -name '*.mjs' -not -name '._*' 2>/dev/null | sort)
+EOF
+else
+  warn "node is not installed — JS syntax was not checked"
+fi
+
+# 5. Скрипты bin/
+for f in "$KIT_ROOT"/bin/* "$KIT_ROOT"/install.sh; do
+  [ -f "$f" ] || continue
+  out="$(bash -n "$f" 2>&1)" || fail "$(rel "$f"): $out"
+done
+
+if [ "$errors" = 0 ]; then
+  ok "Check passed (JS files checked: $js_checked)"
+else
+  die "Errors: $errors"
+fi

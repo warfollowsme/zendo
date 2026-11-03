@@ -1,0 +1,7 @@
+/*
+ * @name Tab close button on hover only
+ * @description Hides the tab close button until the tab is hovered. The space stays reserved, so the title does not jump.
+ */
+.tabbrowser-tab:not(:hover) .tab-close-button {
+  opacity: 0 !important;
+}

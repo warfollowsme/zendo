@@ -1,0 +1,17 @@
+/*
+ * @name Translate button
+ * @description Keep the built-in translation button visible on pages that support translation, even when the page language matches the browser.
+ */
+
+/* Кнопка обычно скрыта для языка интерфейса. Показываем её, только когда
+   штатная команда перевода доступна; логику и панель оставляем браузеру.
+   На служебных страницах, включая режим чтения, кнопку не форсируем. */
+:root:not([zen-private-window="true"]):has(#cmd_translate:not([disabled="true"])) #translations-button {
+  display: flex !important;
+}
+
+/* Скрытой кнопке браузер не выставляет состояние, и в ней видны сразу
+   стрелки загрузки и пустая метка языка. Оставляем только значок. */
+:root:not([zen-private-window="true"]):has(#cmd_translate:not([disabled="true"])) #translations-button[hidden] > :is(#translations-button-circle-arrows, #translations-button-locale) {
+  display: none !important;
+}
