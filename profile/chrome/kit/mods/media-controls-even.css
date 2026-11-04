@@ -1,0 +1,10 @@
+/*
+ * @name Even media controls
+ * @description Spaces the media player buttons (site icon, previous, play, next, mute) evenly across the card.
+ */
+/* Zen groups previous/play/next in a box capped at 10em, so the gaps around
+   it are wider than the gaps inside; laying the buttons out as one row makes
+   every gap equal. While sharing the camera or mic Zen hides this box itself. */
+.zen-media-card:not([media-sharing]) .zen-media-playback-buttons {
+  display: contents !important;
+}
