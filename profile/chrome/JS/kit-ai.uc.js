@@ -2446,17 +2446,20 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         pre.append(el("code", null, String(detail).slice(0, 6000)));
         card.append(pre);
         const buttons = el("div", "kit-ai-approve-buttons");
-        const done = (allowed, all) => {
+        const done = (allowed, all, label) => {
+          clearTimeout(timer);
           this.pending.delete(entry);
           if (all) {
             this.trustAll = true;
           }
           card.classList.add(allowed ? "allowed" : "denied");
-          buttons.replaceChildren(el("span", null, allowed ? "Allowed" : "Denied"));
+          buttons.replaceChildren(el("span", null, label || (allowed ? "Allowed" : "Denied")));
           resolve(allowed);
         };
         const entry = () => done(false);
         this.pending.add(entry);
+        // Claude Code stops waiting soon after this; a late click would go nowhere.
+        const timer = setTimeout(() => done(false, false, "No answer"), KitAI.APPROVAL_TIMEOUT);
         buttons.append(
           this.button("Allow", "", () => done(true)),
           this.button("Allow all in this chat", "", () => done(true, true)),

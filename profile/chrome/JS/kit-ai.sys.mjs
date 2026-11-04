@@ -87,6 +87,12 @@ async function findClaude() {
 
 // ---- MCP server (Streamable HTTP, JSON responses only) ----
 
+// How long an approval card waits for the user. Claude Code gives up on an
+// MCP call after 60 seconds by default (too little to read a script) and
+// tells the server nothing, so it gets MCP_TOOL_TIMEOUT a minute longer and
+// the card answers "no" itself before that.
+const APPROVAL_TIMEOUT = 60 * 60 * 1000;
+
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
@@ -338,7 +344,7 @@ class ClaudeSession {
       command,
       arguments: args,
       workdir: repo,
-      environment: { PATH: searchPath(), KIT_AI: "1" },
+      environment: { PATH: searchPath(), KIT_AI: "1", MCP_TOOL_TIMEOUT: String(APPROVAL_TIMEOUT + 60 * 1000) },
       environmentAppend: true,
       stderr: "pipe",
     });
@@ -436,4 +442,4 @@ async function claudeAuth() {
   }
 }
 
-export const KitAI = { findRepo, findUserDir, personalAgents, McpServer, ClaudeSession, claudeAuth };
+export const KitAI = { findRepo, findUserDir, personalAgents, McpServer, ClaudeSession, claudeAuth, APPROVAL_TIMEOUT };
