@@ -1021,7 +1021,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.effortButton.addEventListener("click", () => this.openEffortMenu());
       this.sendButton = this.iconButton("arrow-up", "Send (Enter)", () => (this.busy ? this.stop() : this.submit()));
       this.sendButton.classList.add("kit-ai-send");
-      this.micButton = this.iconButton("microphone", "Voice input (Cmd+Shift+Space): speak — it is sent after a pause (Esc cancels)", () => this.toggleVoice());
+      this.micButton = this.iconButton("microphone", "Voice input (Cmd+Shift+U): speak — it is sent after a pause (Esc cancels)", () => this.toggleVoice());
       this.micButton.classList.add("kit-ai-mic");
       row.append(attach, this.micButton, el("span", "kit-ai-spacer"), this.modelButton, this.effortButton, this.sendButton);
 
@@ -1133,7 +1133,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           ? "Send now (Esc cancels)"
           : state === "transcribing"
             ? "Recognizing speech…"
-            : "Voice input (Cmd+Shift+Space): speak — it is sent after a pause (Esc cancels)";
+            : "Voice input (Cmd+Shift+U): speak — it is sent after a pause (Esc cancels)";
     }
 
     // Copying from the feed. The feed takes focus on click (tabindex), otherwise
@@ -2616,8 +2616,10 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     key.setAttribute("key", "E");
     key.setAttribute("command", "kit-ai-toggle");
     keys.append(key);
-    // Cmd+Shift+Space (Ctrl+Shift+Space) — voice input: opens the panel and listens;
-    // pressed again while listening, sends what was said.
+    // Voice input: opens the panel and listens; pressed again while listening,
+    // sends what was said. Cmd+Shift+U (Ctrl+Shift+U) — a letter, so it works with
+    // any keyboard layout; another one: kit.ai.voice-key = "accel,alt+V" and the like.
+    const [voiceModifiers, voiceLetter] = Services.prefs.getStringPref("kit.ai.voice-key", "accel,shift+U").split("+");
     const voiceCommand = document.createXULElement("command");
     voiceCommand.id = "kit-ai-voice";
     voiceCommand.addEventListener("command", () => {
@@ -2627,8 +2629,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     commands.append(voiceCommand);
     const voiceKey = document.createXULElement("key");
     voiceKey.id = "kit-ai-voice-key";
-    voiceKey.setAttribute("modifiers", "accel,shift");
-    voiceKey.setAttribute("key", " ");
+    voiceKey.setAttribute("modifiers", voiceModifiers);
+    voiceKey.setAttribute("key", voiceLetter || "U");
     voiceKey.setAttribute("command", "kit-ai-voice");
     keys.append(voiceKey);
     document.documentElement.append(commands, keys);

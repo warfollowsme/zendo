@@ -207,8 +207,9 @@ account), an **API key** (Anthropic or OpenAI) or any **OpenAI-compatible**
 service (OpenRouter, DeepSeek, Groq, Ollama, LM Studio…). Details are
 [below](#connection-details).
 
-**Voice.** The microphone button next to "+" or **Cmd+Shift+Space**
-(Ctrl+Shift+Space on Linux) listens for a spoken request. A pause of 1.5 seconds
+**Voice.** The microphone button next to "+" or **Cmd+Shift+U**
+(Ctrl+Shift+U on Linux; another one: `kit.ai.voice-key` in about:config, e.g.
+`accel,alt+V`) listens for a spoken request. A pause of 1.5 seconds
 ends it (or click / press the shortcut again); Esc cancels. Speech is recognized
 on your computer by [whisper.cpp](https://github.com/ggml-org/whisper.cpp), in
 any language, and sent as a message (if you had typed something, the speech is
