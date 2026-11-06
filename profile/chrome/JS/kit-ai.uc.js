@@ -1021,7 +1021,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.effortButton.addEventListener("click", () => this.openEffortMenu());
       this.sendButton = this.iconButton("arrow-up", "Send (Enter)", () => (this.busy ? this.stop() : this.submit()));
       this.sendButton.classList.add("kit-ai-send");
-      this.micButton = this.iconButton("microphone", "Voice input: click, speak, click again to send (Esc cancels)", () => this.toggleVoice());
+      this.micButton = this.iconButton("microphone", "Voice input (Cmd+Shift+Space): speak — it is sent after a pause (Esc cancels)", () => this.toggleVoice());
       this.micButton.classList.add("kit-ai-mic");
       row.append(attach, this.micButton, el("span", "kit-ai-spacer"), this.modelButton, this.effortButton, this.sendButton);
 
@@ -1033,7 +1033,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     // ---- voice input: recorded here, recognized on this computer by whisper.cpp (voice.sys.mjs)
 
     async toggleVoice() {
-      if (this.voice === "transcribing") {
+      if (!this.micButton || this.voice === "transcribing") {
         return;
       }
       if (this.recording) {
@@ -1047,9 +1047,11 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         return;
       }
       try {
-        this.recording = await voice.startRecording(window, level =>
-          this.micButton.style.setProperty("--kit-ai-voice-level", level.toFixed(2))
-        );
+        this.recording = await voice.startRecording(window, {
+          onLevel: level => this.micButton.style.setProperty("--kit-ai-voice-level", level.toFixed(2)),
+          // the phrase ends by itself after a pause; nothing said — the recording is dropped
+          onEnd: heard => (heard ? this.finishVoice() : this.cancelVoice("Nothing was heard.")),
+        });
       } catch (e) {
         console.error("kit-ai voice:", e);
         this.error(
@@ -1075,17 +1077,26 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.micButton.style.removeProperty("--kit-ai-voice-level");
     }
 
-    cancelVoice() {
-      this.recording?.cancel();
+    cancelVoice(message) {
+      if (!this.recording) {
+        return;
+      }
+      this.recording.cancel();
       this.recording = null;
       this.stopVoiceKeys();
       this.setVoice(null);
+      if (message) {
+        this.note(message);
+      }
     }
 
     // Text goes into the input; if it was empty, the message is sent at once —
     // a spoken command. Typed text stays, and the speech is added to it.
     async finishVoice() {
       const recording = this.recording;
+      if (!recording) {
+        return;
+      }
       this.recording = null;
       this.stopVoiceKeys();
       this.setVoice("transcribing");
@@ -1119,10 +1130,10 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.setIcon(this.micButton, state === "recording" ? "microphone-fill" : "microphone");
       this.micButton.title =
         state === "recording"
-          ? "Stop and send (Esc cancels)"
+          ? "Send now (Esc cancels)"
           : state === "transcribing"
             ? "Recognizing speech…"
-            : "Voice input: click, speak, click again to send (Esc cancels)";
+            : "Voice input (Cmd+Shift+Space): speak — it is sent after a pause (Esc cancels)";
     }
 
     // Copying from the feed. The feed takes focus on click (tabindex), otherwise
@@ -2605,6 +2616,21 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     key.setAttribute("key", "E");
     key.setAttribute("command", "kit-ai-toggle");
     keys.append(key);
+    // Cmd+Shift+Space (Ctrl+Shift+Space) — voice input: opens the panel and listens;
+    // pressed again while listening, sends what was said.
+    const voiceCommand = document.createXULElement("command");
+    voiceCommand.id = "kit-ai-voice";
+    voiceCommand.addEventListener("command", () => {
+      panel.toggle(true);
+      panel.toggleVoice();
+    });
+    commands.append(voiceCommand);
+    const voiceKey = document.createXULElement("key");
+    voiceKey.id = "kit-ai-voice-key";
+    voiceKey.setAttribute("modifiers", "accel,shift");
+    voiceKey.setAttribute("key", " ");
+    voiceKey.setAttribute("command", "kit-ai-voice");
+    keys.append(voiceKey);
     document.documentElement.append(commands, keys);
 
     // The panel is a layout tool: the ✦ icon on the toolbar, top right by default.

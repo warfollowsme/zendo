@@ -207,11 +207,12 @@ account), an **API key** (Anthropic or OpenAI) or any **OpenAI-compatible**
 service (OpenRouter, DeepSeek, Groq, Ollama, LM Studio…). Details are
 [below](#connection-details).
 
-**Voice.** The microphone button next to "+" records a spoken request: click,
-speak, click again. Speech is recognized on your computer by
-[whisper.cpp](https://github.com/ggml-org/whisper.cpp), in any language, and
-sent as a message (if you had typed something, the speech is added to it
-instead); Esc cancels. Set it up once with `bin/voice setup`; macOS asks for
+**Voice.** The microphone button next to "+" or **Cmd+Shift+Space**
+(Ctrl+Shift+Space on Linux) listens for a spoken request. A pause of 1.5 seconds
+ends it (or click / press the shortcut again); Esc cancels. Speech is recognized
+on your computer by [whisper.cpp](https://github.com/ggml-org/whisper.cpp), in
+any language, and sent as a message (if you had typed something, the speech is
+added to it instead). Set it up once with `bin/voice setup`; macOS asks for
 microphone access the first time.
 
 Besides files, the assistant has browser tools:

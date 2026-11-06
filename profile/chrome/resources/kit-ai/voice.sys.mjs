@@ -1,7 +1,10 @@
 // Voice input for the assistant: the window records the microphone, whisper.cpp
 // (whisper-cli) turns it into text on this computer. Set up with bin/voice setup.
 //
-//   const rec = await startRecording(window, level => …);  // level 0…1, for the button
+//   const rec = await startRecording(window, {
+//     onLevel: level => …,     // 0…1, for the button
+//     onEnd: heard => …,       // a pause after speech (true) or no speech at all (false)
+//   });
 //   const wav = await rec.stop();                           // or rec.cancel()
 //   const text = await transcribe(wav, findRepo());
 
@@ -9,6 +12,11 @@ import { Subprocess } from "resource://gre/modules/Subprocess.sys.mjs";
 
 const RATE = 16000; // whisper.cpp takes 16 kHz mono WAV
 const MODEL_NAME = "ggml-large-v3-turbo-q5_0.bin";
+// When a phrase is over: the level is measured against the room's noise in the first moments.
+const NOISE_MS = 250; // the noise level is taken from this start of the recording
+const SPEECH_MS = 200; // this much sound above the noise counts as speech
+const PAUSE_MS = 1500; // silence after speech that ends the phrase
+const WAIT_MS = 8000; // no speech this long — nothing to wait for
 const SETUP = "Voice input needs whisper.cpp and its model: run bin/voice setup in the Zendo folder.";
 
 function searchPath() {
@@ -43,22 +51,45 @@ export async function missing(repo) {
 }
 
 // Records from the default microphone until stop() or cancel().
-export async function startRecording(win, onLevel) {
+export async function startRecording(win, { onLevel, onEnd } = {}) {
   const stream = await win.navigator.mediaDevices.getUserMedia({ audio: true });
   const ctx = new win.AudioContext();
   const source = ctx.createMediaStreamSource(stream);
   // ScriptProcessor: no worklet file to load, and the chunks are small
   const node = ctx.createScriptProcessor(4096, 1, 1);
   const chunks = [];
+  let elapsed = 0;
+  let noise = 0;
+  let noiseChunks = 0;
+  let speech = 0;
+  let silence = 0;
+  let ended = false;
   node.onaudioprocess = e => {
     const data = e.inputBuffer.getChannelData(0);
     chunks.push(new Float32Array(data));
-    if (onLevel) {
-      let peak = 0;
-      for (let i = 0; i < data.length; i += 16) {
-        peak = Math.max(peak, Math.abs(data[i]));
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i] * data[i];
+    }
+    const rms = Math.sqrt(sum / data.length);
+    const ms = (data.length / ctx.sampleRate) * 1000;
+    elapsed += ms;
+    onLevel?.(Math.min(1, rms * 8));
+
+    if (elapsed <= NOISE_MS) {
+      noise = (noise * noiseChunks + rms) / ++noiseChunks;
+      return;
+    }
+    if (rms > Math.max(0.02, noise * 3)) {
+      speech += ms;
+    }
+    silence = rms > Math.max(0.012, noise * 2) ? 0 : silence + ms;
+    if (!ended && onEnd) {
+      const heard = speech >= SPEECH_MS;
+      if ((heard && silence >= PAUSE_MS) || (!heard && elapsed >= WAIT_MS)) {
+        ended = true;
+        onEnd(heard);
       }
-      onLevel(Math.min(1, peak * 2));
     }
   };
   source.connect(node);
