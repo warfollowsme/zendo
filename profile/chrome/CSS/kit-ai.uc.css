@@ -621,6 +621,25 @@
   color: var(--zen-colors-primary-foreground, white) !important;
 }
 
+/* microphone: red while recording, a ring grows with the voice level */
+.kit-ai-mic[recording] {
+  opacity: 1 !important;
+  color: var(--zen-colors-primary-foreground, white) !important;
+  background: light-dark(#d93a3a, #e5484d) !important;
+  border-radius: 50% !important;
+  box-shadow: 0 0 0 calc(var(--kit-ai-voice-level, 0) * 6px) color-mix(in srgb, light-dark(#d93a3a, #e5484d) 35%, transparent);
+  transition: box-shadow 80ms linear;
+}
+
+.kit-ai-mic[transcribing] {
+  opacity: 1 !important;
+  animation: kit-ai-mic-wait 1s ease-in-out infinite alternate;
+}
+
+@keyframes kit-ai-mic-wait {
+  to { opacity: 0.3; }
+}
+
 /* files dragged into the panel */
 #kit-ai-panel[dragging] .kit-ai-composer {
   box-shadow: inset 0 0 0 2px var(--zen-accent-button-color, AccentColor);

@@ -55,6 +55,7 @@ zendo/                        base
 │   ├── sync                  assemble the profile from the base and personal layer
 │   ├── update                update the base from GitHub
 │   ├── personal              share the personal layer between devices (its own git repo)
+│   ├── voice                 voice input for the AI panel: whisper.cpp and its model (.kit/whisper/)
 │   ├── theme                 themes
 │   ├── mod                   browser UI mods
 │   ├── site                  styles for individual sites
@@ -83,7 +84,7 @@ zendo/                        base
 │       │   ├── kit-space-themes.uc.js   a theme per Zen space (Theme list in Create Space / theme picker)
 │       │   └── kit-site-scripts.sys.mjs site scripts: sites/<name>.js on pages
 │       ├── CSS/              fx-autoconfig styles (*.uc.css): kit-layout, kit-ai
-│       ├── resources/        files for scripts: kit-ai/chatgpt.sys.mjs — ChatGPT, kit-ai/api.sys.mjs — API keys (Anthropic, OpenAI, OpenAI-compatible)
+│       ├── resources/        files for scripts: kit-ai/chatgpt.sys.mjs — ChatGPT, kit-ai/api.sys.mjs — API keys (Anthropic, OpenAI, OpenAI-compatible), kit-ai/voice.sys.mjs — voice input
 │       └── utils/            fx-autoconfig loader — DO NOT EDIT
 ├── program/                  fx-autoconfig files for the Zen program folder — DO NOT EDIT
 ├── zen-source/               Zen sources (not in the project's git) — DO NOT EDIT, read only

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Voice input for the AI assistant: speech is recognized on this computer by
+# whisper.cpp, the sound never leaves it.
+#   bin/voice           — what is installed
+#   bin/voice setup     — install whisper.cpp and download the speech model (~550 MB)
+#   bin/voice remove    — delete the downloaded model
+# The microphone button in the assistant panel uses whisper-cli from PATH (or the
+# kit.ai.voice-whisper pref) and the model in .kit/whisper/ (or kit.ai.voice-model).
+source "$(dirname "$0")/_lib.sh"
+
+MODEL_NAME="ggml-large-v3-turbo-q5_0.bin" # multilingual, fast; good with Russian and English
+MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/$MODEL_NAME"
+MODEL_DIR="$KIT_STATE/whisper"
+MODEL="$MODEL_DIR/$MODEL_NAME"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+case "${1:-}" in
+  "")
+    if command -v whisper-cli >/dev/null 2>&1; then
+      ok "whisper.cpp: $(command -v whisper-cli)"
+    else
+      warn "whisper.cpp is not installed — bin/voice setup"
+    fi
+    if [ -f "$MODEL" ]; then
+      ok "Model: $MODEL ($(du -h "$MODEL" | cut -f1))"
+    else
+      warn "No speech model — bin/voice setup"
+    fi
+    ;;
+  setup)
+    if ! command -v whisper-cli >/dev/null 2>&1; then
+      if command -v brew >/dev/null 2>&1; then
+        info "Installing whisper.cpp (brew install whisper-cpp)…"
+        brew install whisper-cpp || die "brew could not install whisper-cpp"
+      else
+        die "Install whisper.cpp with your package manager (it provides whisper-cli: e.g. pacman -S whisper.cpp, or build it from https://github.com/ggml-org/whisper.cpp), then run bin/voice setup again."
+      fi
+    fi
+    ok "whisper.cpp: $(command -v whisper-cli)"
+    if [ ! -f "$MODEL" ]; then
+      mkdir -p "$MODEL_DIR"
+      info "Downloading the speech model ($MODEL_NAME, ~550 MB)…"
+      curl -fL --progress-bar -o "$MODEL.part" "$MODEL_URL" || die "Could not download $MODEL_URL"
+      mv "$MODEL.part" "$MODEL"
+    fi
+    ok "Model: $MODEL"
+    info "Done: the microphone button in the assistant panel works now."
+    ;;
+  remove)
+    rm -rf "$MODEL_DIR"
+    ok "Model deleted. whisper.cpp itself stays: brew uninstall whisper-cpp"
+    ;;
+  *)
+    die "Unknown command: $1 (bin/voice, setup, remove)"
+    ;;
+esac

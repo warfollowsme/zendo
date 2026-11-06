@@ -171,6 +171,7 @@ From the base folder (`~/.local/share/zendo`):
 | `bin/mod` | UI mods; `bin/mod on <name>` / `bin/mod off <name>` |
 | `bin/site` | site styles (and their `<name>.js` scripts, if any); `bin/site on <name>` / `bin/site off <name>` |
 | `bin/update` | update the base from GitHub |
+| `bin/voice` | voice input for the AI panel; `bin/voice setup` — install whisper.cpp and its speech model (~550 MB) |
 | `bin/personal` | the personal layer's repository: `remote <url>`, `push`, `pull` (see [Several devices](#several-devices)) |
 | `bin/sync` | rebuild the profile — after adding or removing a file in the personal layer |
 | `bin/restart` | restart Zen; `--clear-cache` — after JS edits |
@@ -205,6 +206,13 @@ connect several at once: **Claude** (Claude Code), **ChatGPT** (a Plus/Pro/Team
 account), an **API key** (Anthropic or OpenAI) or any **OpenAI-compatible**
 service (OpenRouter, DeepSeek, Groq, Ollama, LM Studio…). Details are
 [below](#connection-details).
+
+**Voice.** The microphone button next to "+" records a spoken request: click,
+speak, click again. Speech is recognized on your computer by
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp), in any language, and
+sent as a message (if you had typed something, the speech is added to it
+instead); Esc cancels. Set it up once with `bin/voice setup`; macOS asks for
+microphone access the first time.
 
 Besides files, the assistant has browser tools:
 
@@ -283,6 +291,7 @@ tab and selected text; click to turn it off.
 `JS/kit-ai.sys.mjs` (MCP server and launching Claude Code),
 `resources/kit-ai/chatgpt.sys.mjs` (ChatGPT sign-in and the agent loop),
 `resources/kit-ai/api.sys.mjs` (API keys: Anthropic, OpenAI, OpenAI-compatible, their agents),
+`resources/kit-ai/voice.sys.mjs` (voice input: recording and whisper.cpp),
 `CSS/kit-ai.uc.css` (panel appearance). Browser tools are given to Claude Code
 over MCP through a local server: it listens only on 127.0.0.1 on a random port
 and accepts only a one-time token. With Claude Code the browser doesn't go

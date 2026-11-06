@@ -18,6 +18,7 @@
   const PREF_PROVIDER = "kit.ai.provider"; // "claude" | "chatgpt" | "anthropic" | "openai" | "compatible"
   const CHATGPT_URL = "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
   const API_URL = "chrome://userchrome/content/kit-ai/api.sys.mjs";
+  const VOICE_URL = "chrome://userchrome/content/kit-ai/voice.sys.mjs";
 
   const PROMPT_BROWSER = `You are an AI assistant built into the Zen browser: the user talks to you from a side panel of the browser.
 The working directory is Zendo, the settings repository of this very browser (the base); the rules for working with it are in AGENTS.md.
@@ -1020,11 +1021,108 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.effortButton.addEventListener("click", () => this.openEffortMenu());
       this.sendButton = this.iconButton("arrow-up", "Send (Enter)", () => (this.busy ? this.stop() : this.submit()));
       this.sendButton.classList.add("kit-ai-send");
-      row.append(attach, el("span", "kit-ai-spacer"), this.modelButton, this.effortButton, this.sendButton);
+      this.micButton = this.iconButton("microphone", "Voice input: click, speak, click again to send (Esc cancels)", () => this.toggleVoice());
+      this.micButton.classList.add("kit-ai-mic");
+      row.append(attach, this.micButton, el("span", "kit-ai-spacer"), this.modelButton, this.effortButton, this.sendButton);
 
       composer.append(this.attachments, this.input, row);
       composer.addEventListener("click", e => e.target === composer && this.input.focus());
       return composer;
+    }
+
+    // ---- voice input: recorded here, recognized on this computer by whisper.cpp (voice.sys.mjs)
+
+    async toggleVoice() {
+      if (this.voice === "transcribing") {
+        return;
+      }
+      if (this.recording) {
+        this.finishVoice();
+        return;
+      }
+      const voice = ChromeUtils.importESModule(VOICE_URL);
+      const problem = await voice.missing(KitAI.findRepo());
+      if (problem) {
+        this.error(problem);
+        return;
+      }
+      try {
+        this.recording = await voice.startRecording(window, level =>
+          this.micButton.style.setProperty("--kit-ai-voice-level", level.toFixed(2))
+        );
+      } catch (e) {
+        console.error("kit-ai voice:", e);
+        this.error(
+          e.name === "NotAllowedError"
+            ? "Zen has no access to the microphone: allow it in System Settings → Privacy & Security → Microphone, then try again."
+            : `Could not start recording: ${e.message}`
+        );
+        return;
+      }
+      this.setVoice("recording");
+      this.voiceEscape = e => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          this.cancelVoice();
+        }
+      };
+      window.addEventListener("keydown", this.voiceEscape, true);
+    }
+
+    stopVoiceKeys() {
+      window.removeEventListener("keydown", this.voiceEscape, true);
+      this.micButton.style.removeProperty("--kit-ai-voice-level");
+    }
+
+    cancelVoice() {
+      this.recording?.cancel();
+      this.recording = null;
+      this.stopVoiceKeys();
+      this.setVoice(null);
+    }
+
+    // Text goes into the input; if it was empty, the message is sent at once —
+    // a spoken command. Typed text stays, and the speech is added to it.
+    async finishVoice() {
+      const recording = this.recording;
+      this.recording = null;
+      this.stopVoiceKeys();
+      this.setVoice("transcribing");
+      try {
+        const voice = ChromeUtils.importESModule(VOICE_URL);
+        const text = await voice.transcribe(await recording.stop(), KitAI.findRepo());
+        if (!text) {
+          this.note("Nothing was heard.");
+          return;
+        }
+        const typed = this.input.value.trim();
+        this.input.value = typed ? `${typed} ${text}` : text;
+        this.autosize();
+        if (!typed && !this.busy) {
+          this.submit();
+        } else {
+          this.input.focus();
+        }
+      } catch (e) {
+        console.error("kit-ai voice:", e);
+        this.error(e.message);
+      } finally {
+        this.setVoice(null);
+      }
+    }
+
+    setVoice(state) {
+      this.voice = state;
+      this.micButton.toggleAttribute("recording", state === "recording");
+      this.micButton.toggleAttribute("transcribing", state === "transcribing");
+      this.setIcon(this.micButton, state === "recording" ? "microphone-fill" : "microphone");
+      this.micButton.title =
+        state === "recording"
+          ? "Stop and send (Esc cancels)"
+          : state === "transcribing"
+            ? "Recognizing speech…"
+            : "Voice input: click, speak, click again to send (Esc cancels)";
     }
 
     // Copying from the feed. The feed takes focus on click (tabindex), otherwise
