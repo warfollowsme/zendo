@@ -315,6 +315,15 @@ After editing run bin/check, then commit: in the base git add … && git commit 
             Cu.nukeSandbox(sandbox);
           }
         }
+        case "seek": {
+          const video = doc.querySelector("#movie_player video") || doc.querySelector("video");
+          if (!video) {
+            return false;
+          }
+          video.currentTime = data.time;
+          video.play()?.catch(() => {});
+          return true;
+        }
       }
       throw new Error("unknown request " + name);
     };
@@ -533,6 +542,62 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     return node;
   }
 
+  // Links in answers reuse a tab that already shows the same page (ignoring
+  // the time and the #fragment): the tab is selected instead of opening a
+  // duplicate, and a video link with a time (YouTube ?t=1h2m3s, &t=3723)
+  // just seeks the player there.
+  function linkPage(url) {
+    try {
+      const u = new URL(url);
+      u.hash = "";
+      if (u.hostname === "youtu.be") {
+        return "https://www.youtube.com/watch?v=" + u.pathname.slice(1);
+      }
+      if (/(^|\.)youtube\.com$/.test(u.hostname) && u.pathname === "/watch") {
+        return "https://www.youtube.com/watch?v=" + u.searchParams.get("v");
+      }
+      u.searchParams.delete("t");
+      return u.href;
+    } catch {
+      return url;
+    }
+  }
+
+  function linkTime(url) {
+    let t;
+    try {
+      const u = new URL(url);
+      t = u.searchParams.get("t") ?? new URLSearchParams(u.hash.slice(1)).get("t");
+    } catch {
+      return null;
+    }
+    const m = t?.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/);
+    if (!m || !t) {
+      return null;
+    }
+    return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+  }
+
+  async function openLink(url) {
+    const page = linkPage(url);
+    const tab = gBrowser.visibleTabs.find(t => linkPage(t.linkedBrowser.currentURI.spec) === page);
+    if (!tab) {
+      openTrustedLinkIn(url, "tab");
+      return;
+    }
+    gBrowser.selectedTab = tab;
+    const time = linkTime(url);
+    if (time !== null) {
+      const seeked = await pageQuery(tab, "seek", { time }, 5000).catch(() => false);
+      if (seeked === true) {
+        return;
+      }
+    } else if (tab.linkedBrowser.currentURI.spec === url) {
+      return;
+    }
+    openTrustedLinkIn(url, "current");
+  }
+
   function renderInline(parent, src) {
     const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\[[^\]]+\]\((https?:\/\/[^)\s]+)\))|(https?:\/\/[^\s)<>]+)/g;
     let last = 0;
@@ -552,7 +617,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         a.title = url;
         a.addEventListener("click", e => {
           e.preventDefault();
-          openTrustedLinkIn(url, "tab");
+          openLink(url).catch(err => console.error("kit-ai: link", err));
         });
         parent.append(a);
       }
