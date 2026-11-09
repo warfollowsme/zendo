@@ -344,7 +344,14 @@ class ClaudeSession {
       command,
       arguments: args,
       workdir: repo,
-      environment: { PATH: searchPath(), KIT_AI: "1", MCP_TOOL_TIMEOUT: String(APPROVAL_TIMEOUT + 60 * 1000) },
+      environment: {
+        PATH: searchPath(),
+        KIT_AI: "1",
+        MCP_TOOL_TIMEOUT: String(APPROVAL_TIMEOUT + 60 * 1000),
+        // every command starts in the repository root: the approval policy
+        // (resources/kit-ai/policy.sys.mjs) reads relative paths from there
+        CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: "1",
+      },
       environmentAppend: true,
       stderr: "pipe",
     });

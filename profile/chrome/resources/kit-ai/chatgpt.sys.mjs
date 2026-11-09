@@ -11,6 +11,7 @@
 
 import { Subprocess } from "resource://gre/modules/Subprocess.sys.mjs";
 import { setTimeout, clearTimeout } from "resource://gre/modules/Timer.sys.mjs";
+import { safeCommand, writeTarget } from "chrome://userchrome/content/kit-ai/policy.sys.mjs";
 
 const CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"; // Codex's public OAuth client
 const AUTH_URL = "https://auth.openai.com";
@@ -300,52 +301,99 @@ export const REPO_TOOLS = [
   {
     name: "run_command",
     description:
-      "Run a bash command in the repository root (bin/check, bin/sync, bin/mod on …, git commit …, git -C <personal layer> commit …). Returns output and exit code. Commands other than bin/* and git status/diff/log/add/commit need user approval.",
+      "Run a command in the repository root (bin/check, bin/sync, bin/mod on …, git commit …, git -C <personal layer> commit …). Returns output and exit code. Runs without asking: bin/check|status|sync|theme|mod|site, git [-C <personal layer>] status|diff|log|add|commit with their usual options, ls and grep inside the repository and the personal layer — written as plain commands joined by &&, with quoted strings that contain no $ or backticks. Anything else (pipes, redirects, other programs or options) needs user approval.",
     parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
   },
 ];
 
-const READ_ONLY_DIRS = ["zen-source", "profile/chrome/utils", "program", ".git"];
-// git -C <path> — commands in the personal layer
-const SAFE_COMMAND =
-  /^(bin\/(check|status)|bin\/sync( --quiet)?|bin\/(theme|mod|site)( [\w.-]+)*|git (-C [^\s;&|`$<>\\]+ )?(status|diff|log)( [^;&|`$<>\n\\]*)?|git (-C [^\s;&|`$<>\\]+ )?(add|commit) [^;&|`$<>\n\\]+|ls( [^;&|`$<>\n\\]*)?|grep [^;&|`$<>\n\\]+)$/;
+// What may happen without asking the user is decided in policy.sys.mjs — one
+// policy for these tools and for Claude Code (kit-ai.uc.js). This file gives it
+// the real paths and runs what it allowed.
 
-export function commandNeedsApproval(command) {
-  return !SAFE_COMMAND.test(String(command).trim());
-}
-
-// Files that run as code: scripts and everything in bin/ (run_command runs
-// bin/theme, bin/mod… without asking). Writing them needs approval, so a page
-// can't talk the agent into a privileged script unnoticed (README, Security).
-// Case-insensitive: so are macOS file names and fx-autoconfig's *.uc.js.
-const CODE_FILE = /\.(c?js|mjs|sh|py|swift)$|^bin\//i;
-
-export function fileNeedsApproval(repo, rel) {
-  let path;
-  try {
-    path = resolvePath(repo, rel, { write: true });
-  } catch (e) {
-    return false; // callRepoTool refuses this path anyway
-  }
-  const user = userDir();
-  const root = inside(path, user) ? user : repo;
-  return CODE_FILE.test(path.slice(root.length + 1));
-}
+const homeDir = () => Services.dirsvc.get("Home", Ci.nsIFile).path;
 
 function shellPath() {
-  const home = Services.dirsvc.get("Home", Ci.nsIFile).path;
-  return [`${home}/.local/bin`, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
+  return [`${homeDir()}/.local/bin`, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
 }
 
 // Personal layer (~/.config/zendo): chrome/user in the profile links to it.
 function userDir() {
-  const file = Services.dirsvc.get("UChrm", Ci.nsIFile);
-  file.append("user");
-  if (!file.isSymlink() || !file.exists()) {
+  try {
+    const file = Services.dirsvc.get("UChrm", Ci.nsIFile);
+    file.append("user");
+    if (!file.exists() || !file.isSymlink()) {
+      return null;
+    }
+    file.normalize();
+    return file.path;
+  } catch (e) {
     return null;
   }
-  file.normalize();
-  return file.path;
+}
+
+// Absolute path with symlinks resolved. nsIFile.normalize() is realpath(): it
+// fails on a path that doesn't exist yet (a new file), so the nearest existing
+// folder is resolved and the rest appended.
+function realPath(path) {
+  const rest = [];
+  for (let current = PathUtils.normalize(path); ; ) {
+    const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+    try {
+      file.initWithPath(current);
+      file.normalize();
+      return rest.length ? PathUtils.join(file.path, ...rest) : file.path;
+    } catch (e) {
+      const parent = PathUtils.parent(current);
+      if (!parent) {
+        throw e;
+      }
+      rest.unshift(PathUtils.filename(current));
+      current = parent;
+    }
+  }
+}
+
+function policyContext(repo) {
+  return { repo: realPath(repo), user: userDir(), home: homeDir(), real: realPath };
+}
+
+// A path as the tools take it — relative to the repository root, absolute, or
+// from ~/ — made absolute.
+function absolutePath(repo, rel) {
+  const path = String(rel || ".").replace(/^~(?=\/|$)/, homeDir());
+  // PathUtils.join doesn't accept parts containing "/", joinRelative does
+  return path.startsWith("/") ? path : PathUtils.joinRelative(repo, path);
+}
+
+// run_command: true unless the policy lets this command run without asking.
+export function commandNeedsApproval(repo, command) {
+  return !safeCommand(command, policyContext(repo));
+}
+
+// write_file / edit_file: true when the file runs as code (scripts, bin/).
+// A path the tools refuse anyway (outside, read-only) doesn't ask.
+export function fileNeedsApproval(repo, rel) {
+  try {
+    return !!writeTarget(absolutePath(repo, rel), policyContext(repo))?.code;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Claude Code asks before every write (see kit-ai.uc.js): true when this file may
+// be written without a card — inside the base or the personal layer, not
+// third-party code, not .git, not code. It resolves the path on its own, so
+// only an absolute one without ".." is taken at its word.
+export function writeAllowed(repo, path) {
+  if (typeof path !== "string" || !path.startsWith("/") || path.split("/").includes("..")) {
+    return false;
+  }
+  try {
+    const target = writeTarget(path, policyContext(repo));
+    return !!target && !target.readOnly && !target.code;
+  } catch (e) {
+    return false;
+  }
 }
 
 const inside = (path, root) => !!root && (path === root || path.startsWith(root + "/"));
@@ -353,30 +401,26 @@ const inside = (path, root) => !!root && (path === root || path.startsWith(root 
 // Path for output: relative inside the repository, absolute in the personal layer.
 const shown = (repo, path) => (inside(path, repo) ? path.slice(repo.length + 1) || "." : path);
 
+// The real path of a file the tools may touch: inside the repository or the
+// personal layer; for writing, not third-party code and not .git.
 function resolvePath(repo, rel = ".", { write = false } = {}) {
-  const file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
-  // PathUtils.join doesn't accept parts containing "/" — a relative path is
-  // joined with joinRelative, an absolute one is taken as is (and checked
-  // below to be inside the repository or the personal layer)
-  const path0 = String(rel || ".").replace(/^~(?=\/)/, Services.dirsvc.get("Home", Ci.nsIFile).path);
-  file.initWithPath(path0.startsWith("/") ? path0 : PathUtils.joinRelative(repo, path0));
-  file.normalize();
-  const path = file.path;
-  const user = userDir();
-  if (inside(path, user)) {
-    if (write && (path === PathUtils.join(user, ".git") || path.startsWith(PathUtils.join(user, ".git") + "/"))) {
-      throw new Error(".git must not be changed directly");
-    }
-    return path;
-  }
-  if (!inside(path, repo)) {
+  const target = writeTarget(absolutePath(repo, rel), policyContext(repo));
+  if (!target) {
     throw new Error("The path is outside the repository and the personal layer");
   }
-  const relative = path.slice(repo.length + 1);
-  if (write && READ_ONLY_DIRS.some(d => relative === d || relative.startsWith(d + "/"))) {
-    throw new Error(`${relative}: this folder must not be changed (see AGENTS.md)`);
+  if (write && target.readOnly) {
+    throw new Error(`${target.relative}: must not be changed — third-party code or .git (see AGENTS.md)`);
   }
-  return path;
+  return target.path;
+}
+
+const programs = new Map(); // "git" → its path
+
+async function programPath(name) {
+  if (!programs.has(name)) {
+    programs.set(name, await Subprocess.pathSearch(name, { PATH: shellPath() }));
+  }
+  return programs.get(name);
 }
 
 async function run(repo, command, args, timeoutMs = 120000) {
@@ -388,6 +432,8 @@ async function run(repo, command, args, timeoutMs = 120000) {
     environmentAppend: true,
     stderr: "stdout",
   });
+  // nothing will be typed: a command that reads its input gets the end right away
+  proc.stdin.close().catch(() => {});
   let out = "";
   const decoder = new TextDecoder();
   const timer = setTimeout(() => proc.kill(), timeoutMs);
@@ -409,7 +455,12 @@ async function run(repo, command, args, timeoutMs = 120000) {
 
 const clip = (s, n = 30000) => (s.length > n ? s.slice(0, n) + `\n… (truncated, ${s.length} characters total)` : s);
 
-export async function callRepoTool(repo, name, args) {
+// approved: the user allowed this very call on an approval card. Without it,
+// only what the policy lets through runs — whatever the caller checked or forgot.
+export async function callRepoTool(repo, name, args, { approved = false } = {}) {
+  if (["write_file", "edit_file"].includes(name) && !approved && fileNeedsApproval(repo, args.path)) {
+    throw new Error("Writing a script or a file in bin/ needs the user's approval");
+  }
   switch (name) {
     case "read_file": {
       const lines = (await IOUtils.readUTF8(resolvePath(repo, args.path))).split("\n");
@@ -469,7 +520,28 @@ export async function callRepoTool(repo, name, args) {
       return `Edited: ${args.path}`;
     }
     case "run_command": {
-      const { exitCode, out } = await run(repo, "/bin/bash", ["-c", args.command]);
+      const safe = safeCommand(args.command, policyContext(repo));
+      if (!safe) {
+        if (!approved) {
+          throw new Error("This command needs the user's approval");
+        }
+        const { exitCode, out } = await run(repo, "/bin/bash", ["-c", args.command]);
+        return clip(`exit code: ${exitCode}\n${out}`);
+      }
+      // Allowed by the policy: run exactly what it checked — each program with
+      // its arguments, no shell in between to read the line differently.
+      let exitCode = 0;
+      let out = "";
+      for (const { program, args: argv } of safe) {
+        const result = program.startsWith("bin/")
+          ? await run(repo, "/bin/bash", [PathUtils.joinRelative(repo, program), ...argv])
+          : await run(repo, await programPath(program), argv);
+        out += result.out;
+        exitCode = result.exitCode;
+        if (exitCode) {
+          break; // as && does
+        }
+      }
       return clip(`exit code: ${exitCode}\n${out}`);
     }
   }

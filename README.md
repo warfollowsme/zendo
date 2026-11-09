@@ -231,9 +231,18 @@ Besides files, the assistant has browser tools:
 Writing scripts (`*.js`, `*.mjs`, `*.cjs`, `*.sh`, `*.py`, `*.swift`) or
 anything in `bin/`, shell commands other than
 `bin/check|status|sync|theme|mod|site`,
-`git [-C <folder>] status|diff|log|add|commit`, `ls` and `grep`, as well as
-edits to files outside the base and the personal layer, also require
-confirmation in the panel. You can click "Allow all in this chat".
+`git [-C <base or personal layer>] status|diff|log|add|commit`, and `ls` and
+`grep` inside the base and the personal layer, as well as edits to files
+outside the base and the personal layer, also require confirmation in the
+panel. You can click "Allow all in this chat".
+
+The commands on that list are checked word by word, not by how they start
+(`resources/kit-ai/policy.sys.mjs`, tested by `bin/check`): an option outside
+the list — `git log --output=<file>` writes a file — a pipe, a redirect or
+`$(…)` asks as well, and so do `cp`, `mv` and the like. Claude Code also reads
+inside the base and the personal layer with its own read-only commands (`cat`,
+`find`…) without asking. Rules you allowed in your own Claude Code settings
+apply in the panel too.
 
 The assistant writes permanent browser changes to files and commits them; to
 apply them, press ↻ in the panel header: the browser restarts with the script

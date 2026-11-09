@@ -4,7 +4,8 @@
 #   - themes have @name, @scheme and all 7 --theme-* variables;
 #   - mods and site styles have @name and @description;
 #   - curly braces in CSS are balanced;
-#   - JS scripts are syntactically valid (if node is installed).
+#   - JS scripts are syntactically valid (if node is installed);
+#   - the tests in tests/ pass (if node is installed).
 source "$(dirname "$0")/_lib.sh"
 
 errors=0
@@ -114,6 +115,11 @@ if command -v node >/dev/null 2>&1; then
   done <<EOF
 $(find "$KIT_CHROME_SRC/resources" -name '*.mjs' -not -name '._*' 2>/dev/null | sort)
 EOF
+  # tests: what the AI assistant may do without asking (resources/kit-ai/policy.sys.mjs)
+  for f in "$KIT_ROOT"/tests/*.test.mjs; do
+    [ -e "$f" ] || continue
+    out="$(node "$f" 2>&1)" || fail "$(rel "$f"): $out"
+  done
 else
   warn "node is not installed — JS syntax was not checked"
 fi
