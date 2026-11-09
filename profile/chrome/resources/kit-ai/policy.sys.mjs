@@ -415,3 +415,75 @@ export function urlAllowed(url, { userTexts = [], seen = new Set(), searchUrl = 
   const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
   return userTexts.some(text => hostMentioned(text, host));
 }
+
+// ---------------------------------------------------------------- spoken answers
+
+// Voice input while an approval card waits: a phrase → "allow", "deny" or null
+// (not an answer — it goes to the message field as usual). Only a phrase that
+// is nothing but the answer counts: "yes, but show me the file first" is not a
+// yes. "Allow all in this chat" has no spoken form on purpose.
+// English and Russian out of the box; extra holds more words per answer
+// (the prefs kit.ai.voice-allow / kit.ai.voice-deny, see user.js).
+const SPOKEN = {
+  allow: [
+    "allow",
+    "allow it",
+    "yes",
+    "yes allow",
+    "ok",
+    "okay",
+    "go ahead",
+    "разреши",
+    "разрешить",
+    "разрешаю",
+    "да",
+    "да разреши",
+    "можно",
+    "хорошо",
+    "давай",
+  ],
+  deny: [
+    "deny",
+    "deny it",
+    "no",
+    "no deny",
+    "don't allow",
+    "do not allow",
+    "cancel",
+    "запрети",
+    "запретить",
+    "запрещаю",
+    "нет",
+    "нет запрети",
+    "не разрешай",
+    "не разрешаю",
+    "нельзя",
+    "не надо",
+    "отклони",
+    "отклонить",
+    "отмена",
+  ],
+};
+
+// As spoken: speech recognition adds capitals and punctuation of its own.
+const spoken = phrase =>
+  String(phrase ?? "")
+    .toLowerCase()
+    .replace(/[’`]/g, "'")
+    .replace(/ё/g, "е")
+    .replace(/[^\p{L}\p{N}']+/gu, " ")
+    .trim();
+
+export function spokenAnswer(text, extra = {}) {
+  const phrase = spoken(text);
+  if (!phrase) {
+    return null;
+  }
+  // "deny" first: a word that ended up in both lists must not allow
+  for (const answer of ["deny", "allow"]) {
+    if ([...SPOKEN[answer], ...(extra[answer] || [])].some(word => spoken(word) === phrase)) {
+      return answer;
+    }
+  }
+  return null;
+}

@@ -412,6 +412,12 @@
   box-shadow: inset 0 0 0 1px var(--zen-accent-button-color, AccentColor);
   font-size: 13px;
 
+  /* focused with Tab: Enter allows, Esc denies */
+  &:focus-visible {
+    outline: 2px solid var(--zen-accent-button-color, AccentColor);
+    outline-offset: 2px;
+  }
+
   &.allowed,
   &.denied {
     box-shadow: none;

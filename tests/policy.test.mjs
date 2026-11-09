@@ -9,6 +9,7 @@ import {
   hostMentioned,
   parseCommand,
   safeCommand,
+  spokenAnswer,
   urlAllowed,
   urlKey,
   writeTarget,
@@ -405,6 +406,35 @@ check("open_url: only addresses somebody else wrote open without asking", () => 
   assert.equal(hostMentioned("anything", ""), false);
   assert.equal(urlKey("https://a.example/x#y"), "https://a.example/x");
   assert.equal(urlKey("nope"), "");
+});
+
+check("a spoken answer is the whole phrase or nothing", () => {
+  for (const phrase of ["Allow.", " allow ", "Yes!", "Okay.", "Go ahead.", "Разреши.", "Да", "Да, разреши!", "Можно", "ДАВАЙ"]) {
+    assert.equal(spokenAnswer(phrase), "allow", phrase);
+  }
+  for (const phrase of ["Deny.", "No", "Don’t allow.", "Do not allow", "Нет.", "Запрети!", "Не надо", "Нет, запрети", "Отмена"]) {
+    assert.equal(spokenAnswer(phrase), "deny", phrase);
+  }
+  for (const phrase of [
+    "",
+    "   ",
+    "…",
+    "yes, but show me the file first",
+    "allow all",
+    "allow all in this chat",
+    "разреши всё",
+    "да, но сначала покажи файл",
+    "open example.com",
+    "not allowed",
+    "нет, не запрещай",
+    "no no no yes",
+    undefined,
+  ]) {
+    assert.equal(spokenAnswer(phrase), null, String(phrase));
+  }
+  assert.equal(spokenAnswer("Sí."), null);
+  assert.equal(spokenAnswer("Sí.", { allow: ["sí", "vale"], deny: ["no", "cancelar"] }), "allow");
+  assert.equal(spokenAnswer("vale", { allow: ["Vale"], deny: ["vale"] }), "deny", "in both lists: never an allow");
 });
 
 fs.rmSync(tmp, { recursive: true, force: true });

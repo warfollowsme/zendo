@@ -220,6 +220,14 @@ any language, and sent as a message (if you had typed something, the speech is
 added to it instead). Set it up once with `bin/voice setup`; macOS asks for
 microphone access the first time.
 
+While an approval card is waiting, a spoken "allow" or "deny" answers it
+instead ("yes", "no", "разреши", "нет"…; your own words:
+`kit.ai.voice-allow` and `kit.ai.voice-deny`). Only a phrase that is nothing
+but the answer counts, and "Allow all in this chat" is never taken by voice.
+The microphone hears everything around it, a video playing on a page too, so
+start listening when the room is yours. With the keyboard: Tab to the card,
+then Enter allows and Esc denies.
+
 Besides files, the assistant has browser tools:
 
 | Tool | What it does | Confirmation |

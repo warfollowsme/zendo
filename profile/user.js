@@ -43,6 +43,11 @@ user_pref("zen.urlbar.behavior", "normal");
 // How hard ChatGPT thinks: "low", "medium", "high".
 // user_pref("kit.ai.openai-effort", "medium");
 
+// Voice answers to the assistant's approval cards: words that allow or deny,
+// besides the built-in English and Russian ones (comma-separated).
+// user_pref("kit.ai.voice-allow", "sí, vale");
+// user_pref("kit.ai.voice-deny", "no, cancelar");
+
 // ---- Links: no new windows; links from a page open in a split on the right (JS/link-split.uc.js) ----
 
 // Links and window.open calls with window sizes open as a tab, not a separate

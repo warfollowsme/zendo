@@ -1252,6 +1252,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           this.note("Nothing was heard.");
           return;
         }
+        if (this.answerBySpeech(text)) {
+          return; // it was the answer to an approval card
+        }
         const typed = this.input.value.trim();
         this.input.value = typed ? `${typed} ${text}` : text;
         this.autosize();
@@ -2787,7 +2790,12 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           }
         }
         const buttons = el("div", "kit-ai-approve-buttons");
+        let answered = false;
         const done = (allowed, all, label) => {
+          if (answered) {
+            return; // a click, a key and a spoken word may all arrive
+          }
+          answered = true;
           clearTimeout(timer);
           this.pending.delete(entry);
           if (all) {
@@ -2800,25 +2808,67 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           buttons.replaceChildren(el("span", null, label || (allowed ? "Allowed" : "Denied")));
           resolve(allowed);
         };
-        const entry = () => done(false);
+        const entry = { answer: done };
         this.pending.add(entry);
         // Claude Code stops waiting soon after this; a late click would go nowhere.
         const timer = setTimeout(() => done(false, false, "No answer"), KitAI.APPROVAL_TIMEOUT);
         buttons.append(
-          this.button("Allow", "", () => done(true)),
+          this.button("Allow", "Enter on the card, or say “allow” with voice input", () => done(true)),
           this.button("Allow all in this chat", "", () => done(true, true)),
-          this.button("Deny", "", () => done(false))
+          this.button("Deny", "Esc on the card, or say “deny” with voice input", () => done(false))
         );
         card.append(buttons);
+        // Keys, once the card itself has the focus (Tab or a click on it): Enter
+        // allows, Esc denies. The card never takes the focus by itself — an Enter
+        // meant for the message field must not allow anything.
+        card.tabIndex = 0;
+        card.addEventListener("keydown", e => {
+          if (e.target !== card || answered) {
+            return; // a focused button handles its own Enter
+          }
+          if (e.key === "Enter") {
+            e.preventDefault();
+            done(true);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            done(false);
+          }
+        });
         this.log.append(card);
         this.scroll(true);
       });
     }
 
     denyPending() {
-      for (const deny of [...this.pending]) {
-        deny();
+      for (const entry of [...this.pending]) {
+        entry.answer(false);
       }
+    }
+
+    // Voice input while an approval card waits: a phrase that is nothing but
+    // "allow" or "deny" (spokenAnswer in policy.sys.mjs) answers the card that
+    // has waited longest. "Allow all in this chat" stays a button.
+    // true — the phrase was an answer and is used up.
+    answerBySpeech(phrase) {
+      const [entry] = this.pending;
+      if (!entry) {
+        return false;
+      }
+      const words = pref =>
+        Services.prefs
+          .getStringPref(pref, "")
+          .split(",")
+          .map(word => word.trim())
+          .filter(Boolean);
+      const answer = this.policy().spokenAnswer(phrase, {
+        allow: words("kit.ai.voice-allow"),
+        deny: words("kit.ai.voice-deny"),
+      });
+      if (!answer) {
+        return false;
+      }
+      entry.answer(answer === "allow", false, answer === "allow" ? "Allowed by voice" : "Denied by voice");
+      return true;
     }
   }
 
