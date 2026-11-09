@@ -335,3 +335,19 @@ export function safeCommand(line, ctx) {
   }
   return result;
 }
+
+// ---------------------------------------------------------------- pages
+
+// The <browser-context> block that opens a user message: the active tab and
+// the text selected on it. The title and the selection are written by the page,
+// and the block sits inside the user's own message, so they go in as JSON
+// strings with < and > escaped: whatever a page puts there stays inside its
+// string and can't close the block and carry on as if the user had typed it.
+export function browserContext({ tab, title, url, selection }) {
+  const data = { active_tab: tab, title: String(title ?? "").slice(0, 300), url: String(url ?? "") };
+  if (selection) {
+    data.selected_text = String(selection).slice(0, 4000);
+  }
+  const json = JSON.stringify(data, null, 1).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+  return `<browser-context>\n${json}\n</browser-context>\n\n`;
+}
