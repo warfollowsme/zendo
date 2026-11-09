@@ -1030,6 +1030,10 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.streamed = false;
       this.chips = new Map(); // tool_use_id → element
       this.pending = new Set(); // awaiting approval
+      // The message being answered. Stop and a change of chat move on from it, and
+      // whatever of the old one is still on its way — a context being read, an agent
+      // being set up, a tool that finishes late — no longer touches the panel.
+      this.turnId = 0;
       this.grants = new Map(); // an allowed call on a tab → the tab its card showed
       this.seenUrls = new Set(); // addresses the assistant was shown in this chat (see urlAllowed)
       this.files = []; // attachments for the next message
@@ -2150,6 +2154,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     }
 
     resetSession() {
+      this.turnId++;
       this.session?.stop();
       this.server?.stop();
       this.agent?.stop();
@@ -2286,18 +2291,24 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.userMessage(text, files);
       this.scroll(true);
       this.setBusy(true);
+      const turn = ++this.turnId;
       try {
         const context = this.shareTab ? await this.browserContext() : "";
         const content = await this.buildContent(context + text, files);
+        if (turn !== this.turnId) {
+          return; // stopped while the message was being put together: it is not sent
+        }
         if (this.provider === "claude") {
           this.ensureSession();
           await this.session.send(content);
         } else {
-          await this.sendAgent(content);
+          await this.sendAgent(content, turn);
         }
       } catch (e) {
-        this.error(e.message || String(e));
-        this.setBusy(false);
+        if (turn === this.turnId) {
+          this.error(e.message || String(e));
+          this.setBusy(false);
+        }
       }
     }
 
@@ -2316,6 +2327,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     }
 
     stop() {
+      this.turnId++;
       this.session?.stop();
       this.agent?.stop();
       this.denyPending();
@@ -2410,7 +2422,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         model,
         effort: this.effort(p),
         saved: this.savedAgent,
-        callTool: async (name, args) => {
+        // signal: the turn's — Stop ends a running command (see AgentTurns)
+        callTool: async (name, args, { signal } = {}) => {
           const ask =
             ["run_page_js", "run_browser_js", "close_tab"].includes(name) ||
             (name === "open_url" && !this.urlAllowed(args.url)) ||
@@ -2423,7 +2436,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
             return handlers[name](args);
           }
           // approved: only then does it run what the policy wouldn't let through
-          return text(await chatgpt.callRepoTool(repo, name, args, { approved: ask }));
+          return text(await chatgpt.callRepoTool(repo, name, args, { approved: ask, signal }));
         },
         ui: {
           textStart: () => this.startBubble(),
@@ -2437,19 +2450,26 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.savedAgent = null;
     }
 
-    async sendAgent(content) {
+    async sendAgent(content, turn) {
       if (this.provider === "chatgpt" && !(await this.chatgpt().account())) {
         throw new Error("Not signed in to ChatGPT — reconnect it from the accounts menu.");
       }
       if (!this.agent) {
         await this.createAgent();
       }
+      if (turn !== this.turnId) {
+        return; // stopped while the agent was being set up
+      }
       this.status.textContent = this.agent.model;
       try {
         await this.agent.send(content);
       } finally {
-        this.finishBubble();
-        this.setBusy(false);
+        // a stopped turn may end much later, when its tool returns — in the
+        // middle of the next one, which this must not mark as finished
+        if (turn === this.turnId) {
+          this.finishBubble();
+          this.setBusy(false);
+        }
       }
     }
 

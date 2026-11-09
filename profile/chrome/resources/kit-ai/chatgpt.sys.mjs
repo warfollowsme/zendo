@@ -423,7 +423,8 @@ async function programPath(name) {
   return programs.get(name);
 }
 
-async function run(repo, command, args, timeoutMs = 120000) {
+// signal — the turn's AbortSignal: Stop ends the command too.
+async function run(repo, command, args, { timeoutMs = 120000, signal } = {}) {
   const proc = await Subprocess.call({
     command,
     arguments: args,
@@ -436,28 +437,46 @@ async function run(repo, command, args, timeoutMs = 120000) {
   proc.stdin.close().catch(() => {});
   let out = "";
   const decoder = new TextDecoder();
-  const timer = setTimeout(() => proc.kill(), timeoutMs);
+  // Killing ends the command itself, but something it started may keep the
+  // output open; so a kill also ends the reading below.
+  let killed = "";
+  let endReading;
+  const ended = new Promise(resolve => (endReading = resolve));
+  const kill = why => {
+    killed ||= why;
+    proc.kill();
+    endReading(null);
+  };
+  const timer = setTimeout(() => kill(`no result within ${Math.round(timeoutMs / 1000)} seconds`), timeoutMs);
+  const onAbort = () => kill("stopped by the user");
+  if (signal?.aborted) {
+    onAbort();
+  } else {
+    signal?.addEventListener("abort", onAbort, { once: true });
+  }
   for (;;) {
-    const buf = await proc.stdout.read().catch(() => null);
+    const buf = await Promise.race([proc.stdout.read().catch(() => null), ended]);
     if (!buf || !buf.byteLength) {
       break;
     }
     out += decoder.decode(buf, { stream: true });
     if (out.length > 200000) {
-      proc.kill();
+      kill("too much output");
       break;
     }
   }
   const { exitCode } = await proc.wait();
   clearTimeout(timer);
-  return { exitCode, out };
+  signal?.removeEventListener("abort", onAbort);
+  return { exitCode, out: killed ? `${out}\n(ended: ${killed})` : out };
 }
 
 const clip = (s, n = 30000) => (s.length > n ? s.slice(0, n) + `\n… (truncated, ${s.length} characters total)` : s);
 
 // approved: the user allowed this very call on an approval card. Without it,
 // only what the policy lets through runs — whatever the caller checked or forgot.
-export async function callRepoTool(repo, name, args, { approved = false } = {}) {
+// signal: the turn's AbortSignal — Stop ends a running command.
+export async function callRepoTool(repo, name, args, { approved = false, signal } = {}) {
   if (["write_file", "edit_file"].includes(name) && !approved && fileNeedsApproval(repo, args.path)) {
     throw new Error("Writing a script or a file in bin/ needs the user's approval");
   }
@@ -499,7 +518,7 @@ export async function callRepoTool(repo, name, args, { approved = false } = {}) 
         grepArgs.push(`--include=${args.glob}`);
       }
       grepArgs.push("-e", args.pattern, resolvePath(repo, args.path || "."));
-      const { out } = await run(repo, "/usr/bin/grep", grepArgs, 60000);
+      const { out } = await run(repo, "/usr/bin/grep", grepArgs, { timeoutMs: 60000, signal });
       const lines = out.split("\n").filter(Boolean).map(l => (l.startsWith(repo + "/") ? l.slice(repo.length + 1) : l));
       return clip(lines.slice(0, 200).join("\n") + (lines.length > 200 ? `\n… ${lines.length - 200} more` : "") || "Nothing found");
     }
@@ -525,7 +544,7 @@ export async function callRepoTool(repo, name, args, { approved = false } = {}) 
         if (!approved) {
           throw new Error("This command needs the user's approval");
         }
-        const { exitCode, out } = await run(repo, "/bin/bash", ["-c", args.command]);
+        const { exitCode, out } = await run(repo, "/bin/bash", ["-c", args.command], { signal });
         return clip(`exit code: ${exitCode}\n${out}`);
       }
       // Allowed by the policy: run exactly what it checked — each program with
@@ -534,8 +553,8 @@ export async function callRepoTool(repo, name, args, { approved = false } = {}) 
       let out = "";
       for (const { program, args: argv } of safe) {
         const result = program.startsWith("bin/")
-          ? await run(repo, "/bin/bash", [PathUtils.joinRelative(repo, program), ...argv])
-          : await run(repo, await programPath(program), argv);
+          ? await run(repo, "/bin/bash", [PathUtils.joinRelative(repo, program), ...argv], { signal })
+          : await run(repo, await programPath(program), argv, { signal });
         out += result.out;
         exitCode = result.exitCode;
         if (exitCode) {
@@ -550,15 +569,50 @@ export async function callRepoTool(repo, name, args, { approved = false } = {}) 
 
 // ---------------------------------------------------------------- agent
 
+// One turn of an agent is one send(), and Stop ends it for good. Whatever the
+// turn was waiting for — the model's reply, a tool that takes a minute — it
+// finds itself over when that returns and leaves the history alone. (Stop used
+// to set a flag that the next send() cleared: the stopped loop then came back to
+// life beside the new one, and the two wrote into one history until the
+// provider rejected it for good.)
+// The agents here and in api.sys.mjs share this.
+export class AgentTurns {
+  turn = null; // the send() that is running: { abort }
+
+  // Starts a turn; its abort signal goes to the request and to the tools.
+  begin() {
+    this.stop();
+    this.turn = { abort: new this.win.AbortController() };
+    return this.turn;
+  }
+
+  over(turn) {
+    return this.turn !== turn;
+  }
+
+  // A turn that has just been stopped, and no new one started yet, may still
+  // put into the history what the user saw of its unfinished reply.
+  stoppedOnly(turn) {
+    return this.turn === null && !!turn;
+  }
+
+  stop() {
+    const turn = this.turn;
+    this.turn = null;
+    turn?.abort.abort();
+  }
+}
+
 // Loop: request to the model → tool calls → their results back → …
 // The history is kept here (store: false — nothing stays on the server).
-export class ChatGPTAgent {
+export class ChatGPTAgent extends AgentTurns {
   // tools: [{ name, description, parameters }]
   // callTool(name, args) → Promise<content[]> in MCP format ({type:"text"} / {type:"image"})
   // ui: { textStart, textDelta, textEnd, tool(id, name, input), toolDone(id, isError), status(text) }
   label = "ChatGPT";
 
   constructor({ win, instructions, tools, callTool, ui, model, effort, saved }) {
+    super();
     this.win = win;
     this.instructions = instructions;
     this.tools = tools;
@@ -568,16 +622,10 @@ export class ChatGPTAgent {
     this.effort = effort;
     this.history = saved?.history || [];
     this.sessionId = saved?.sessionId || Services.uuid.generateUUID().toString().slice(1, -1);
-    this.controller = null;
   }
 
   snapshot() {
     return { model: this.model, sessionId: this.sessionId, history: this.history };
-  }
-
-  stop() {
-    this.stopped = true;
-    this.controller?.abort();
   }
 
   // Every function_call in the history must have an output, or the request is rejected.
@@ -593,40 +641,36 @@ export class ChatGPTAgent {
 
   // content — a string or ready message parts (input_text, input_image, input_file)
   async send(content) {
-    this.stopped = false;
+    const turn = this.begin();
     this.repairHistory();
     this.history.push({
       role: "user",
       content: typeof content === "string" ? [{ type: "input_text", text: content }] : content,
     });
     for (let step = 0; step < MAX_STEPS; step++) {
-      const calls = await this.respond();
-      if (!calls.length || this.stopped) {
+      const calls = await this.respond(turn);
+      if (!calls.length || this.over(turn)) {
         return;
       }
       for (const call of calls) {
-        if (this.stopped) {
-          // every function_call must have an output, or the next request is rejected
-          this.history.push({ type: "function_call_output", call_id: call.call_id, output: "Stopped by the user" });
-          continue;
+        const output = await this.runTool(call, turn);
+        if (this.over(turn)) {
+          return; // stopped while the tool ran: the next send() closes the open calls (repairHistory)
         }
-        this.history.push({ type: "function_call_output", call_id: call.call_id, output: await this.runTool(call) });
-      }
-      if (this.stopped) {
-        return;
+        this.history.push({ type: "function_call_output", call_id: call.call_id, output });
       }
     }
     throw new Error(`Too many steps in a row (${MAX_STEPS}) — stopped`);
   }
 
-  async runTool(call) {
+  async runTool(call, turn) {
     let args = {};
     try {
       args = JSON.parse(call.arguments || "{}");
     } catch (e) {}
     this.ui.tool(call.call_id, call.name, args);
     try {
-      const content = await this.callTool(call.name, args);
+      const content = await this.callTool(call.name, args, { signal: turn.abort.signal });
       this.ui.toolDone(call.call_id, false);
       const texts = content.filter(c => c.type === "text").map(c => c.text);
       const images = content.filter(c => c.type === "image");
@@ -669,28 +713,27 @@ export class ChatGPTAgent {
     return body;
   }
 
-  async request(force = false) {
+  async request(turn, force = false) {
     const { url, headers } = await this.endpoint(force);
-    this.controller = new this.win.AbortController();
     return this.win.fetch(url, {
       method: "POST",
       headers,
       credentials: "omit",
-      signal: this.controller.signal,
+      signal: turn.abort.signal,
       body: JSON.stringify(this.requestBody()),
     });
   }
 
   // One model reply. Returns tool calls (empty — the turn is over).
-  async respond() {
+  async respond(turn) {
     let response;
     try {
-      response = await this.request();
+      response = await this.request(turn);
       if (response.status === 401) {
-        response = await this.request(true);
+        response = await this.request(turn, true);
       }
     } catch (e) {
-      if (this.stopped) {
+      if (this.over(turn)) {
         return [];
       }
       throw e;
@@ -705,7 +748,7 @@ export class ChatGPTAgent {
       // a model without reasoning (via API) doesn't accept reasoning/verbosity — retry without them
       if (response.status === 400 && !this.plain && /reasoning|verbosity|include/i.test(message)) {
         this.plain = true;
-        return this.respond();
+        return this.respond(turn);
       }
       if (response.status === 429) {
         throw new Error(`${this.label} limit reached: ${message}`);
@@ -713,7 +756,9 @@ export class ChatGPTAgent {
       throw new Error(`${this.label} responded ${response.status}: ${message}`);
     }
 
-    const calls = [];
+    // The reply's items go into the history when the reply is complete, not one
+    // by one: a reply cut short must not leave half of itself there.
+    const items = [];
     const byId = new Map();
     let textOpen = false;
     const reader = response.body.getReader();
@@ -741,15 +786,13 @@ export class ChatGPTAgent {
           if (!item) {
             break;
           }
-          this.history.push(item);
+          items.push(item);
           if (item.id) {
             byId.set(item.id, item);
           }
           if (item.type === "message" && textOpen) {
             this.ui.textEnd();
             textOpen = false;
-          } else if (item.type === "function_call") {
-            calls.push(item);
           }
           this.ui.status(this.model);
           break;
@@ -792,7 +835,7 @@ export class ChatGPTAgent {
         }
       }
     } catch (e) {
-      if (!this.stopped) {
+      if (!this.over(turn)) {
         throw e;
       }
     } finally {
@@ -800,6 +843,16 @@ export class ChatGPTAgent {
         this.ui.textEnd();
       }
     }
-    return calls;
+    if (this.over(turn)) {
+      // Stopped mid-reply. What was finished up to the last whole message stays:
+      // the user saw it. Nothing after it does — a reasoning item must be
+      // followed by the item it led to, and a call the user stopped was not made.
+      if (this.stoppedOnly(turn)) {
+        this.history.push(...items.slice(0, items.findLastIndex(item => item.type === "message") + 1));
+      }
+      return [];
+    }
+    this.history.push(...items);
+    return items.filter(item => item.type === "function_call");
   }
 }

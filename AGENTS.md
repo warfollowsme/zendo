@@ -87,7 +87,7 @@ zendo/                        base
 │       ├── resources/        files for scripts: kit-ai/chatgpt.sys.mjs — ChatGPT, kit-ai/api.sys.mjs — API keys (Anthropic, OpenAI, OpenAI-compatible), kit-ai/voice.sys.mjs — voice input, kit-ai/policy.sys.mjs — what the assistant may do without asking
 │       └── utils/            fx-autoconfig loader — DO NOT EDIT
 ├── program/                  fx-autoconfig files for the Zen program folder — DO NOT EDIT
-├── tests/                    tests run by bin/check (node): the assistant's approval policy
+├── tests/                    tests run by bin/check (node): the assistant's approval policy and agent loops
 ├── zen-source/               Zen sources (not in the project's git) — DO NOT EDIT, read only
 └── .kit/                     local state: profile path, backups (not in git)
 

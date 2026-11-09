@@ -5,7 +5,7 @@
 // The key is stored encrypted in the password manager (about:logins → chrome://kit-ai, "API").
 // Requests go directly to the provider and are billed at API rates, not by subscription.
 
-import { ChatGPTAgent } from "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
+import { AgentTurns, ChatGPTAgent } from "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
 
 const LOGIN_ORIGIN = "chrome://kit-ai";
 const LOGIN_REALM = "API";
@@ -216,10 +216,11 @@ export class OpenAIAgent extends ChatGPTAgent {
 
 // Messages API loop: model reply (stream) → tool calls → their
 // results in one message → … Same interface as ChatGPTAgent.
-export class AnthropicAgent {
+export class AnthropicAgent extends AgentTurns {
   label = "Anthropic API";
 
   constructor({ win, instructions, tools, callTool, ui, model, effort, saved }) {
+    super();
     this.win = win;
     this.instructions = instructions;
     this.tools = tools;
@@ -228,16 +229,10 @@ export class AnthropicAgent {
     this.model = saved?.model || model || API_PROVIDERS.anthropic.defaultModel;
     this.effort = effort;
     this.history = saved?.history || [];
-    this.controller = null;
   }
 
   snapshot() {
     return { model: this.model, history: this.history };
-  }
-
-  stop() {
-    this.stopped = true;
-    this.controller?.abort();
   }
 
   // Every tool_use in the history needs a tool_result in the next message,
@@ -258,7 +253,7 @@ export class AnthropicAgent {
 
   // content — a string or ready blocks (text, image, document)
   async send(content) {
-    this.stopped = false;
+    const turn = this.begin();
     this.repairHistory();
     const blocks = typeof content === "string" ? [{ type: "text", text: content }] : content;
     const last = this.history.at(-1);
@@ -268,34 +263,30 @@ export class AnthropicAgent {
       this.history.push({ role: "user", content: blocks });
     }
     for (let step = 0; step < MAX_STEPS; step++) {
-      const calls = await this.respond();
-      if (!calls.length || this.stopped) {
+      const calls = await this.respond(turn);
+      if (!calls.length || this.over(turn)) {
         return;
       }
       const results = [];
       for (const call of calls) {
-        results.push(
-          this.stopped
-            ? { type: "tool_result", tool_use_id: call.id, content: "Stopped by the user", is_error: true }
-            : await this.runTool(call)
-        );
+        results.push(await this.runTool(call, turn));
+        if (this.over(turn)) {
+          return; // stopped while the tool ran: the next send() answers the open calls (repairHistory)
+        }
       }
       this.history.push({ role: "user", content: results });
-      if (this.stopped) {
-        return;
-      }
     }
     throw new Error(`Too many steps in a row (${MAX_STEPS}) — stopped`);
   }
 
-  async runTool(call) {
+  async runTool(call, turn) {
     this.ui.tool(call.id, call.name, call.input || {});
     if (call.badInput) {
       this.ui.toolDone(call.id, true);
       return { type: "tool_result", tool_use_id: call.id, content: "INVALID_JSON: the tool input was not valid JSON", is_error: true };
     }
     try {
-      const content = await this.callTool(call.name, call.input || {});
+      const content = await this.callTool(call.name, call.input || {}, { signal: turn.abort.signal });
       this.ui.toolDone(call.id, false);
       return {
         type: "tool_result",
@@ -312,7 +303,7 @@ export class AnthropicAgent {
     }
   }
 
-  async request() {
+  async request(turn) {
     const body = {
       model: this.model,
       max_tokens: 64000,
@@ -333,29 +324,29 @@ export class AnthropicAgent {
     const requestHeaders = headers("anthropic", await apiKey("anthropic"));
     // Newer models may reject a request with a safety filter (stop_reason
     // "refusal"); with fallbacks the API retries it on a suitable model itself.
-    // "fallback" blocks from the response go back into the history with the rest.
+    // What of such a reply goes back into the history — see respond().
     if (FALLBACK_MODELS.test(this.model)) {
       body.fallbacks = "default";
       requestHeaders["anthropic-beta"] = "server-side-fallback-2026-07-01";
     }
-    this.controller = new this.win.AbortController();
     return this.win.fetch(`${API_PROVIDERS.anthropic.url}/messages`, {
       method: "POST",
       headers: requestHeaders,
       credentials: "omit",
-      signal: this.controller.signal,
+      signal: turn.abort.signal,
       body: JSON.stringify(body),
     });
   }
 
   // One model reply. Response blocks (text, thinking, calls) are collected as they
-  // arrive and go into the history whole — thinking must be sent back unchanged.
-  async respond() {
+  // arrive and go into the history when the reply is complete — thinking must be
+  // sent back unchanged, and never half of it.
+  async respond(turn) {
     let response;
     try {
-      response = await this.request();
+      response = await this.request(turn);
     } catch (e) {
-      if (this.stopped) {
+      if (this.over(turn)) {
         return [];
       }
       throw e;
@@ -369,6 +360,7 @@ export class AnthropicAgent {
     }
 
     const blocks = [];
+    const whole = new Set(); // indexes of the blocks that arrived to their end
     const partialJson = [];
     let stopReason = null;
     let textOpen = false;
@@ -408,6 +400,7 @@ export class AnthropicAgent {
         }
         case "content_block_stop": {
           const block = blocks[event.index];
+          whole.add(event.index);
           if (block?.type === "text" && textOpen) {
             this.ui.textEnd();
             textOpen = false;
@@ -456,7 +449,7 @@ export class AnthropicAgent {
         }
       }
     } catch (e) {
-      if (!this.stopped) {
+      if (!this.over(turn)) {
         throw e;
       }
     } finally {
@@ -465,18 +458,32 @@ export class AnthropicAgent {
       }
     }
 
-    const content = blocks.filter(Boolean);
+    if (this.over(turn)) {
+      // Stopped mid-reply. The text the user saw stays; nothing half-made does:
+      // a thinking block without its signature or a call that was never
+      // finished would be refused with every later request.
+      const text = blocks.filter(b => b?.type === "text" && b.text).map(b => ({ type: "text", text: b.text }));
+      if (this.stoppedOnly(turn) && text.length) {
+        this.history.push({ role: "assistant", content: text });
+      }
+      return [];
+    }
+    if (stopReason === "refusal") {
+      // declined mid-reply, and no fallback took over: the partial reply is dropped
+      throw new Error(`${this.model} declined to answer this request.`);
+    }
+    // Only blocks that arrived whole, and no empty text. If the API switched to
+    // a fallback model mid-reply, the declined attempt's thinking and tool
+    // calls — those before the last "fallback" block — are neither sent back
+    // nor run; its text is.
+    const arrived = blocks.filter((b, i) => b && whole.has(i) && !(b.type === "text" && !b.text));
+    const boundary = arrived.findLastIndex(b => b.type === "fallback");
+    const content = arrived.filter((b, i) => i > boundary || !["thinking", "redacted_thinking", "tool_use"].includes(b.type));
     const calls = content.filter(b => b.type === "tool_use");
     // badInput is only our marker, it doesn't go into the history
     const clean = content.map(({ badInput, ...b }) => b);
     if (clean.length) {
       this.history.push({ role: "assistant", content: clean });
-    }
-    if (this.stopped) {
-      return [];
-    }
-    if (stopReason === "refusal") {
-      throw new Error(`${this.model} declined to answer this request.`);
     }
     if (stopReason === "max_tokens" && calls.length) {
       // the call may have been cut off midway — don't run it
@@ -494,8 +501,9 @@ export class AnthropicAgent {
 // DeepSeek, Groq, Ollama, LM Studio…: model reply (stream) → tool calls → a
 // "tool" message for each → … Same interface as ChatGPTAgent. The model must
 // support tools (function calling): the assistant does everything through them.
-export class CompatibleAgent {
+export class CompatibleAgent extends AgentTurns {
   constructor({ win, instructions, tools, callTool, ui, model, effort, saved }) {
+    super();
     this.win = win;
     this.instructions = instructions;
     this.tools = tools;
@@ -504,7 +512,6 @@ export class CompatibleAgent {
     this.model = saved?.model || model;
     this.effort = effort;
     this.history = saved?.history || [];
-    this.controller = null;
   }
 
   get label() {
@@ -513,11 +520,6 @@ export class CompatibleAgent {
 
   snapshot() {
     return { model: this.model, history: this.history };
-  }
-
-  stop() {
-    this.stopped = true;
-    this.controller?.abort();
   }
 
   // Every tool call needs a "tool" message after it, or the next request is
@@ -538,41 +540,38 @@ export class CompatibleAgent {
 
   // content — a string or ready parts (text, image_url)
   async send(content) {
-    this.stopped = false;
+    const turn = this.begin();
     this.repairHistory();
     this.history.push({ role: "user", content });
     for (let step = 0; step < MAX_STEPS; step++) {
-      const calls = await this.respond();
-      if (!calls.length || this.stopped) {
+      const calls = await this.respond(turn);
+      if (!calls.length || this.over(turn)) {
         return;
       }
       // a tool message holds text only, so images (screenshots) follow in a user message
       const images = [];
       for (const call of calls) {
-        this.history.push(
-          this.stopped
-            ? { role: "tool", tool_call_id: call.id, content: "Stopped by the user" }
-            : await this.runTool(call, images)
-        );
+        const message = await this.runTool(call, images, turn);
+        if (this.over(turn)) {
+          return; // stopped while the tool ran: the next send() answers the open calls (repairHistory)
+        }
+        this.history.push(message);
       }
       if (images.length) {
         this.history.push({ role: "user", content: [{ type: "text", text: "Images returned by the tools above:" }, ...images] });
-      }
-      if (this.stopped) {
-        return;
       }
     }
     throw new Error(`Too many steps in a row (${MAX_STEPS}) — stopped`);
   }
 
-  async runTool(call, images) {
+  async runTool(call, images, turn) {
     this.ui.tool(call.id, call.name, call.input || {});
     if (call.badInput) {
       this.ui.toolDone(call.id, true);
       return { role: "tool", tool_call_id: call.id, content: "INVALID_JSON: the tool arguments were not valid JSON" };
     }
     try {
-      const content = await this.callTool(call.name, call.input || {});
+      const content = await this.callTool(call.name, call.input || {}, { signal: turn.abort.signal });
       this.ui.toolDone(call.id, false);
       // a text-only model (DeepSeek and many others) rejects the whole request with an image
       const vision = cachedModels.compatible?.find(m => m.id === this.model)?.images !== false;
@@ -593,7 +592,7 @@ export class CompatibleAgent {
     }
   }
 
-  async request(plain) {
+  async request(turn, plain) {
     const body = {
       model: this.model,
       stream: true,
@@ -605,30 +604,29 @@ export class CompatibleAgent {
       body.reasoning_effort = this.effort;
     }
     const [login] = await findLogins("compatible");
-    this.controller = new this.win.AbortController();
     return this.win.fetch(`${compatibleURL()}/chat/completions`, {
       method: "POST",
       headers: headers("compatible", login?.password),
       credentials: "omit",
-      signal: this.controller.signal,
+      signal: turn.abort.signal,
       body: JSON.stringify(body),
     });
   }
 
   // One model reply: text and tool calls arrive in pieces (deltas) and are put together.
-  async respond() {
+  async respond(turn) {
     let response;
     try {
-      response = await this.request();
+      response = await this.request(turn);
       if (response.status === 400 && this.effort) {
         // a model without reasoning may not accept reasoning_effort — retry without it
         const message = await errorText(response.clone());
         if (/reasoning/i.test(message)) {
-          response = await this.request(true);
+          response = await this.request(turn, true);
         }
       }
     } catch (e) {
-      if (this.stopped) {
+      if (this.over(turn)) {
         return [];
       }
       throw e;
@@ -698,7 +696,7 @@ export class CompatibleAgent {
         }
       }
     } catch (e) {
-      if (!this.stopped) {
+      if (!this.over(turn)) {
         throw e;
       }
     } finally {
@@ -706,6 +704,15 @@ export class CompatibleAgent {
         this.ui.textEnd();
       }
       this.ui.status(this.model);
+    }
+
+    if (this.over(turn)) {
+      // Stopped mid-reply: the text the user saw stays, a tool call that may be
+      // half-made does not.
+      if (this.stoppedOnly(turn) && text) {
+        this.history.push({ role: "assistant", content: text });
+      }
+      return [];
     }
 
     const toolCalls = calls.filter(Boolean).map((c, i) => {
@@ -732,6 +739,6 @@ export class CompatibleAgent {
       }
       this.history.push(message);
     }
-    return this.stopped ? [] : toolCalls.map(t => t.call);
+    return toolCalls.map(t => t.call);
   }
 }
