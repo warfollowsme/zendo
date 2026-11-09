@@ -468,7 +468,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     screenshot,
 
     async run_page_js({ code, tab }) {
-      return text(await pageQuery(tabAt(tab), "eval", { code }));
+      return text(await pageQuery(panel.grantedTab("run_page_js", { code, tab }), "eval", { code }));
     },
 
     async open_url({ url, new_tab = true }) {
@@ -493,7 +493,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     },
 
     close_tab({ tab }) {
-      gBrowser.removeTab(tabAt(tab));
+      gBrowser.removeTab(panel.grantedTab("close_tab", { tab }));
       return text("Closed");
     },
 
@@ -708,8 +708,63 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       input.file_path ||
       input.path ||
       input.pattern ||
-      (input.code ? input.code.split("\n")[0] : "");
+      (typeof input.code === "string" ? input.code.split("\n")[0] : "");
     return detail ? `${label}: ${String(detail).slice(0, 120)}` : label;
+  }
+
+  // What an approval card shows: exactly the fields the tool is going to use and
+  // nothing else from the model's input — an extra "code" next to "command" must
+  // not be what the user reads while something else runs.
+  // → { target, sections: [[label, text], …] }
+  function approvalDetails(name, input) {
+    const str = value =>
+      typeof value === "string" ? value : value === undefined || value === null ? "" : JSON.stringify(value, null, 1);
+    const edit = (e, every) => [
+      [every ? "Replace every" : "Replace", str(e?.old_string)],
+      ["With", str(e?.new_string)],
+    ];
+    switch (name) {
+      case "run_command":
+      case "Bash":
+        return { sections: [["", str(input.command)]] };
+      case "run_page_js":
+      case "run_browser_js":
+        return { sections: [["", str(input.code)]] };
+      case "write_file":
+        return { target: str(input.path), sections: [["", str(input.content)]] };
+      case "Write":
+        return { target: str(input.file_path), sections: [["", str(input.content)]] };
+      case "edit_file":
+        return { target: str(input.path), sections: edit(input) };
+      case "Edit":
+        return { target: str(input.file_path), sections: edit(input, input.replace_all) };
+      case "MultiEdit":
+        return {
+          target: str(input.file_path),
+          sections: (Array.isArray(input.edits) ? input.edits : []).flatMap(e => edit(e, e?.replace_all)),
+        };
+      case "close_tab":
+        return { sections: [] };
+    }
+    return { sections: [["", JSON.stringify(input, null, 1)]] };
+  }
+  const APPROVAL_SHOWN = 100000; // characters of one section; the card says when there are more
+
+  // Tools that act on one tab. Their approval card may wait for an hour, and
+  // "tab 5" or "the active tab" can be another page by then. So the card
+  // remembers the tab it showed (Panel.grants), and the allowed call runs on
+  // that tab — or not at all, if the tab has gone to another site meanwhile.
+  const TAB_TOOLS = ["run_page_js", "close_tab"];
+  const grantKey = (name, input) => JSON.stringify([name, input.code ?? null, input.tab ?? null]);
+
+  function pinTab(index) {
+    try {
+      const tab = tabAt(index);
+      const uri = tab.linkedBrowser.currentURI;
+      return { tab, url: uri.spec, site: uri.prePath };
+    } catch (e) {
+      return null; // no such tab: the tool will say so itself
+    }
   }
 
   // ---- connection methods and models
@@ -949,6 +1004,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.streamed = false;
       this.chips = new Map(); // tool_use_id → element
       this.pending = new Set(); // awaiting approval
+      this.grants = new Map(); // an allowed call on a tab → the tab its card showed
       this.files = []; // attachments for the next message
       this.shareTab = true;
       this.accounts = {}; // provider → { label } for connected ones
@@ -2071,6 +2127,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.savedAgent = null;
       this.resumeId = null;
       this.trustAll = false;
+      this.grants.clear();
       this.chips.clear();
       this.bubble = null;
       this.setBusy(false);
@@ -2615,6 +2672,24 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return false;
     }
 
+    // The tab a tool call acts on: the one its approval card showed, when there
+    // was a card (see TAB_TOOLS); otherwise the tab the call names.
+    grantedTab(name, input) {
+      const key = grantKey(name, input);
+      const grant = this.grants.get(key);
+      if (!grant) {
+        return tabAt(input.tab);
+      }
+      this.grants.delete(key);
+      if (!grant.tab.isConnected || grant.tab.closing) {
+        throw new Error("The tab this was allowed for has been closed");
+      }
+      if (grant.tab.linkedBrowser.currentURI.prePath !== grant.site) {
+        throw new Error("The tab went to another site after the user allowed this — ask again");
+      }
+      return grant.tab;
+    }
+
     askPermission(toolName, input) {
       if (this.trustAll) {
         return Promise.resolve(true);
@@ -2623,32 +2698,37 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.showView("chat");
       this.finishBubble();
       return new Promise(resolve => {
+        const name = toolName.replace(/^mcp__zen__/, "");
         const card = el("div", "kit-ai-approve");
         card.append(el("div", "kit-ai-approve-title", "Allow? " + toolSummary(toolName, {})));
-        const detail = input.code || input.command || input.content || JSON.stringify(input, null, 1);
-        const target =
-          ["run_page_js", "close_tab"].includes(toolName.replace(/^mcp__zen__/, ""))
-            ? (() => {
-                try {
-                  const tab = tabAt(input.tab);
-                  return `Tab: ${tab.label} — ${tab.linkedBrowser.currentURI.spec}`;
-                } catch (e) {
-                  return "";
-                }
-              })()
-            : input.file_path || input.path || "";
+        const details = approvalDetails(name, input);
+        const pinned = TAB_TOOLS.includes(name) ? pinTab(input.tab) : null;
+        const target = pinned ? `Tab: ${pinned.tab.label} — ${pinned.url}` : details.target;
         if (target) {
           card.append(el("div", "kit-ai-approve-target", target));
         }
-        const pre = el("pre");
-        pre.append(el("code", null, String(detail).slice(0, 6000)));
-        card.append(pre);
+        for (const [label, value] of details.sections) {
+          if (label) {
+            card.append(el("div", "kit-ai-approve-target", label + ":"));
+          }
+          const pre = el("pre");
+          pre.append(el("code", null, value.slice(0, APPROVAL_SHOWN)));
+          card.append(pre);
+          if (value.length > APPROVAL_SHOWN) {
+            card.append(
+              el("div", "kit-ai-approve-target", `Only the beginning is shown: ${value.length - APPROVAL_SHOWN} more characters follow.`)
+            );
+          }
+        }
         const buttons = el("div", "kit-ai-approve-buttons");
         const done = (allowed, all, label) => {
           clearTimeout(timer);
           this.pending.delete(entry);
           if (all) {
             this.trustAll = true;
+          }
+          if (allowed && pinned) {
+            this.grants.set(grantKey(name, input), pinned);
           }
           card.classList.add(allowed ? "allowed" : "denied");
           buttons.replaceChildren(el("span", null, label || (allowed ? "Allowed" : "Denied")));
