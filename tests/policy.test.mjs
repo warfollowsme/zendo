@@ -4,7 +4,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { browserContext, parseCommand, safeCommand, writeTarget } from "../profile/chrome/resources/kit-ai/policy.sys.mjs";
+import {
+  browserContext,
+  hostMentioned,
+  parseCommand,
+  safeCommand,
+  urlAllowed,
+  urlKey,
+  writeTarget,
+} from "../profile/chrome/resources/kit-ai/policy.sys.mjs";
 
 // A throwaway base, personal layer and "outside", with one link that leaves the base.
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "zendo-policy-")));
@@ -345,6 +353,58 @@ check("page text can't leave the browser-context block", () => {
   }
   assert.equal(JSON.parse(browserContext({ tab: 0, title: "t".repeat(999), url: "" }).split("\n").slice(1, -3).join("\n")).title.length, 300);
   assert.ok(!("selected_text" in JSON.parse(browserContext({ tab: 0, title: "", url: "", selection: "" }).split("\n").slice(1, -3).join("\n"))));
+});
+
+check("open_url: only addresses somebody else wrote open without asking", () => {
+  const seen = new Set(["https://news.example/story?id=7", "https://evil.example/collect"].map(urlKey));
+  const ctx = {
+    userTexts: ["open github.com/zen-browser and see docs.zen-browser.app.", "what's on Example.ORG today?"],
+    seen,
+    searchUrl: "https://www.google.com/search?client=firefox-b-d&q=kit",
+  };
+  const open = url => urlAllowed(url, ctx);
+  for (const url of [
+    "https://github.com/zen-browser/desktop",
+    "https://www.github.com/search?q=anything", // the user named the site
+    "https://zen-browser.app/download", // the end of a name they typed
+    "http://example.org/",
+    "https://news.example/story?id=7", // seen as is
+    "https://news.example/story?id=7#comments",
+    "https://evil.example/collect", // a link on a page: it carries nothing of ours
+    "https://www.google.com/search?q=zen+browser+themes",
+  ]) {
+    assert.equal(open(url), true, url);
+  }
+  for (const url of [
+    "https://evil.example/collect?d=the+mail+I+just+read", // composed
+    "https://evil.example/collect/dGhlIG1haWw",
+    "https://dGhlIG1haWw.evil.example/collect",
+    "https://news.example/story?id=8",
+    "https://gist.github.com/x", // not the host they named
+    "https://github.com.evil.example/",
+    "https://notgithub.com/",
+    "https://hub.com/",
+    "https://www.google.com/url?q=https://evil.example/?d=x", // a redirect page, not a search
+    "https://google.com/search?q=x", // another origin than the search engine's
+    "https://user:secret@github.com/",
+    "javascript:alert(1)",
+    "file:///etc/passwd",
+    "about:logins",
+    "not a url",
+    "",
+  ]) {
+    assert.equal(open(url), false, url);
+  }
+  assert.equal(urlAllowed("https://github.com/"), false, "nothing named, nothing seen");
+  assert.equal(hostMentioned("see example.com.", "example.com"), true);
+  assert.equal(hostMentioned("see example.com/path", "example.com"), true);
+  assert.equal(hostMentioned("see sub.example.com", "example.com"), true);
+  assert.equal(hostMentioned("see example.com.evil.org", "example.com"), false);
+  assert.equal(hostMentioned("see my-example.com", "example.com"), false);
+  assert.equal(hostMentioned("see example.community", "example.com"), false);
+  assert.equal(hostMentioned("anything", ""), false);
+  assert.equal(urlKey("https://a.example/x#y"), "https://a.example/x");
+  assert.equal(urlKey("nope"), "");
 });
 
 fs.rmSync(tmp, { recursive: true, force: true });

@@ -69,7 +69,8 @@ practice:
 
 - **It asks first** before writing any script (`*.js`, `*.mjs`, `*.sh`…,
   `user.js` included) or anything in `bin/`, running JS on a page or in the
-  browser window, closing a tab, running shell commands outside a short list,
+  browser window, closing a tab, opening an address it put together itself,
+  running shell commands outside a short list,
   or editing files anywhere else (the full list is in
   [AI assistant](#ai-assistant)). The question shows the file and what goes
   into it. "Allow all in this chat" turns these questions off until the chat
@@ -77,7 +78,10 @@ practice:
 - **Without asking**, it reads tabs and pages, takes screenshots, edits CSS and
   other files that don't run as code (themes, mods, site styles, `AGENTS.md`)
   in the base and your personal layer, and commits them. It can't edit `.git/`
-  at all.
+  at all. It also opens addresses somebody else wrote: on a site you named in
+  the chat, seen as they are in a tab or on a page it read, or a search in
+  your search engine. An address it composed could carry what it has read to
+  someone else, so that one asks, and the card shows it in full.
 - **Browser scripts and `user.js` take effect only after a restart** (↻ in the
   panel or the next launch). Site scripts (`sites/<name>.js`) run with page
   privileges in a sandbox, on pages opened after the change.
@@ -220,7 +224,8 @@ Besides files, the assistant has browser tools:
 
 | Tool | What it does | Confirmation |
 |---|---|---|
-| `list_tabs`, `select_tab`, `open_url` | tabs and navigation | no |
+| `list_tabs`, `select_tab` | tabs | no |
+| `open_url` | open an address | only one it put together itself |
 | `get_page` | page text, links, form fields | no |
 | `screenshot` | a screenshot of the page or the whole browser window | no |
 | `query_browser_ui` | Zen UI markup by selector | no |

