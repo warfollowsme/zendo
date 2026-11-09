@@ -11,6 +11,14 @@ const LOGIN_ORIGIN = "chrome://kit-ai";
 const LOGIN_REALM = "API";
 const MAX_STEPS = 60;
 const FALLBACK_MODELS = /^claude-(fable-5-1|opus-5-5|opus-5|sonnet-5-5)$/;
+// Claude 5 models think by default, and the newer of them tie each thinking
+// block to the conversation that produced it: the system prompt, the tools and
+// every message before the block. Ours can change between requests of one chat
+// — AGENTS.md goes into the system prompt and is re-read when a chat is
+// reopened — and such a request is refused outright on newer accounts. These
+// models are asked to drop the blocks that no longer fit instead (see request).
+const BOUND_THINKING = /^claude-(fable|mythos|opus|sonnet|haiku)-5(-|$)/;
+const BINDING_BETA = "thinking-binding-controls-2026-08-01";
 
 // OpenAI-compatible: one server at a time, its address in kit.ai.compatible-url.
 const PREF_COMPATIBLE_URL = "kit.ai.compatible-url";
@@ -235,20 +243,59 @@ export class AnthropicAgent extends AgentTurns {
     return { model: this.model, history: this.history };
   }
 
-  // Every tool_use in the history needs a tool_result in the next message,
-  // or the request is rejected. After a stop mid-turn, add the missing ones.
+  // Makes the history one the API accepts, before each turn. After a stop
+  // mid-turn the last tool calls have no results: they get "Interrupted". And
+  // a chat saved by an older version may hold what a stop used to leave behind
+  // — a thinking block cut off before its signature, an empty text, a tool
+  // result given twice — each of which made every later request fail.
   repairHistory() {
-    const last = this.history.at(-1);
-    if (last?.role !== "assistant") {
-      return;
+    const interrupted = id => ({ type: "tool_result", tool_use_id: id, content: "Interrupted", is_error: true });
+    const repaired = [];
+    let open = new Set(); // tool calls of the last assistant message, not answered yet
+    const answerOpen = () => {
+      if (open.size) {
+        repaired.push({ role: "user", content: [...open].map(interrupted) });
+        open = new Set();
+      }
+    };
+    for (const message of this.history) {
+      let content = Array.isArray(message.content) ? message.content : [{ type: "text", text: String(message.content ?? "") }];
+      if (message.role === "assistant") {
+        answerOpen();
+        content = content.filter(b => !(b.type === "thinking" && !b.signature) && !(b.type === "text" && !b.text));
+        if (content.length) {
+          open = new Set(content.filter(b => b.type === "tool_use").map(b => b.id));
+          repaired.push({ ...message, content });
+        }
+      } else {
+        // a result answers a call of the message right before it, once; results come first
+        content = content.filter(b => b.type !== "tool_result" || open.delete(b.tool_use_id));
+        content = [...[...open].map(interrupted), ...content];
+        open = new Set();
+        if (content.length) {
+          repaired.push({ ...message, content });
+        }
+      }
     }
-    const calls = last.content.filter(b => b.type === "tool_use");
-    if (calls.length) {
-      this.history.push({
-        role: "user",
-        content: calls.map(c => ({ type: "tool_result", tool_use_id: c.id, content: "Interrupted", is_error: true })),
-      });
+    answerOpen();
+    this.history = repaired;
+  }
+
+  // Removes every thinking block from the history: the API refused them (they
+  // belong to another conversation, or are damaged). true — there were some.
+  dropThinking() {
+    let dropped = false;
+    for (const message of this.history) {
+      if (message.role === "assistant" && Array.isArray(message.content)) {
+        const kept = message.content.filter(b => b.type !== "thinking" && b.type !== "redacted_thinking");
+        dropped ||= kept.length !== message.content.length;
+        message.content = kept;
+      }
     }
+    if (dropped) {
+      this.repairHistory(); // a message that was nothing but thinking goes too
+    }
+    return dropped;
   }
 
   // content — a string or ready blocks (text, image, document)
@@ -322,12 +369,23 @@ export class AnthropicAgent extends AgentTurns {
       body.output_config = { effort: this.effort };
     }
     const requestHeaders = headers("anthropic", await apiKey("anthropic"));
+    const betas = [];
     // Newer models may reject a request with a safety filter (stop_reason
     // "refusal"); with fallbacks the API retries it on a suitable model itself.
     // What of such a reply goes back into the history — see respond().
     if (FALLBACK_MODELS.test(this.model)) {
       body.fallbacks = "default";
-      requestHeaders["anthropic-beta"] = "server-side-fallback-2026-07-01";
+      betas.push("server-side-fallback-2026-07-01");
+    }
+    // Thinking blocks that no longer fit this conversation (see BOUND_THINKING)
+    // are dropped by the API instead of failing the request. "adaptive" is what
+    // these models do without the field as well.
+    if (BOUND_THINKING.test(this.model) && !this.plainThinking) {
+      body.thinking = { type: "adaptive", block_binding: { prefix_mismatch_behavior: "drop_block" } };
+      betas.push(BINDING_BETA);
+    }
+    if (betas.length) {
+      requestHeaders["anthropic-beta"] = betas.join(",");
     }
     return this.win.fetch(`${API_PROVIDERS.anthropic.url}/messages`, {
       method: "POST",
@@ -341,7 +399,7 @@ export class AnthropicAgent extends AgentTurns {
   // One model reply. Response blocks (text, thinking, calls) are collected as they
   // arrive and go into the history when the reply is complete — thinking must be
   // sent back unchanged, and never half of it.
-  async respond(turn) {
+  async respond(turn, retries = 0) {
     let response;
     try {
       response = await this.request(turn);
@@ -353,6 +411,18 @@ export class AnthropicAgent extends AgentTurns {
     }
     if (!response.ok) {
       const message = await errorText(response);
+      if (response.status === 400 && retries < 2) {
+        // a server that doesn't know the thinking controls: go on without them
+        if (!this.plainThinking && /block_binding|thinking-binding-controls/i.test(message)) {
+          this.plainThinking = true;
+          return this.respond(turn, retries + 1);
+        }
+        // thinking blocks it won't take back (another conversation, a damaged
+        // signature): the conversation matters more than they do
+        if (/thinking/i.test(message) && /signature|different conversation/i.test(message) && this.dropThinking()) {
+          return this.respond(turn, retries + 1);
+        }
+      }
       if (response.status === 429) {
         throw new Error(`${this.label} rate limit: ${message}`);
       }

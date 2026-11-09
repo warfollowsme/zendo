@@ -248,6 +248,65 @@ await check("Anthropic: Stop right after the text block opened stores nothing em
   assert.deepEqual(fake.requests.map(r => r.rejected), [undefined, undefined]);
 });
 
+await check("Anthropic: a chat broken by an older version is repaired when it is reopened", async () => {
+  const saved = {
+    model: "claude-opus-5-5",
+    history: [
+      { role: "user", content: [{ type: "text", text: "first" }] },
+      { role: "assistant", content: [{ type: "thinking", thinking: "cut off" }, { type: "tool_use", id: "toolu_1", name: "get_page", input: {} }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "Interrupted", is_error: true }, { type: "text", text: "second" }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "late" }] },
+      { role: "assistant", content: [{ type: "text", text: "" }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "toolu_2", name: "get_page", input: {} }] },
+      { role: "assistant", content: [{ type: "text", text: "Answer." }] },
+    ],
+  };
+  const { agent, fake } = anthropic([anthropicText("Fine.")], { saved });
+  await agent.send("third");
+  assert.deepEqual(fake.requests.map(r => r.rejected), [undefined]);
+});
+
+await check("Anthropic: thinking bound to another conversation is dropped, not fatal", async () => {
+  const saved = {
+    model: "claude-opus-5-5",
+    history: [
+      { role: "user", content: [{ type: "text", text: "first" }] },
+      { role: "assistant", content: [{ type: "thinking", thinking: "", signature: "OLD" }, { type: "text", text: "Answer." }] },
+    ],
+  };
+  // the request itself asks the API to drop such blocks…
+  const { agent, fake } = anthropic([anthropicText("Fine.")], { saved });
+  await agent.send("second");
+  assert.deepEqual(fake.requests[0].body.thinking, { type: "adaptive", block_binding: { prefix_mismatch_behavior: "drop_block" } });
+  assert.match(fake.requests[0].headers["anthropic-beta"], /thinking-binding-controls-2026-08-01/);
+  assert.match(fake.requests[0].headers["anthropic-beta"], /server-side-fallback-2026-07-01/);
+
+  // …and if the API refuses all the same, the blocks are removed and the request repeated
+  const refused = anthropic(
+    [
+      { status: 400, error: "messages.1.content.0: Invalid `signature` in `thinking` block. The block is bound to a different conversation." },
+      anthropicText("Fine."),
+    ],
+    { saved: structuredClone(saved) }
+  );
+  await refused.agent.send("second");
+  assert.equal(refused.fake.requests.length, 2);
+  assert.equal(JSON.stringify(refused.fake.requests[1].body.messages).includes('"thinking"'), false);
+  assert.equal(refused.agent.history.at(-1).content[0].text, "Fine.");
+
+  // a server that doesn't know the controls: asked once more without them
+  const unknown = anthropic([{ status: 400, error: "thinking.block_binding: Extra inputs are not permitted" }, anthropicText("Fine.")]);
+  await unknown.agent.send("first");
+  assert.equal(unknown.fake.requests.length, 2);
+  assert.equal(unknown.fake.requests[1].body.thinking, undefined);
+
+  // older models have no such check and take no thinking object from us
+  const older = anthropic([anthropicText("Fine.")], { model: "claude-opus-4-8" });
+  await older.agent.send("first");
+  assert.equal(older.fake.requests[0].body.thinking, undefined);
+  assert.equal(older.fake.requests[0].headers["anthropic-beta"], undefined);
+});
+
 await check("Anthropic: after a fallback, the declined attempt's thinking and calls are not echoed or run", async () => {
   const reply = {
     events: [
