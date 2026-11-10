@@ -816,7 +816,10 @@ After editing run bin/check, then commit: in the base git add … && git commit 
   // remembers the tab it showed (Panel.grants), and the allowed call runs on
   // that tab — or not at all, if the tab has gone to another site meanwhile.
   const TAB_TOOLS = ["run_page_js", "close_tab"];
-  const grantKey = (name, input) => JSON.stringify([name, input.code ?? null, input.tab ?? null]);
+  // Browser tools that act rather than read: a call runs only after the user's
+  // yes to that very call (Panel.grants) — see Panel.needsCard.
+  const CARD_TOOLS = [...TAB_TOOLS, "run_browser_js", "open_url"];
+  const grantKey = (name, input) => JSON.stringify([name, input.code ?? null, input.tab ?? null, input.url ?? null]);
 
   function pinTab(index) {
     try {
@@ -1069,7 +1072,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       // whatever of the old one is still on its way — a context being read, an agent
       // being set up, a tool that finishes late — no longer touches the panel.
       this.turnId = 0;
-      this.grants = new Map(); // an allowed call on a tab → the tab its card showed
+      this.grants = new Map(); // a call the user allowed on a card → { tab, site } the card showed, for tab tools
       this.seenUrls = new Set(); // addresses the assistant was shown in this chat (see urlAllowed)
       this.files = []; // attachments for the next message
       this.shareTab = true;
@@ -2188,10 +2191,19 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       await chatStore.save(chat).catch(e => console.error("kit-ai: save chat", e));
     }
 
+    // The file with the MCP server's token (ensureSession) goes with the server.
+    forgetServer() {
+      if (this.mcpConfig) {
+        IOUtils.remove(this.mcpConfig, { ignoreAbsent: true }).catch(() => {});
+        this.mcpConfig = null;
+      }
+    }
+
     resetSession() {
       this.turnId++;
       this.session?.stop();
       this.server?.stop();
+      this.forgetServer();
       this.agent?.stop();
       this.denyPending();
       this.session = this.server = this.agent = null;
@@ -2401,6 +2413,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.session?.stop();
       this.agent?.stop();
       this.server?.stop();
+      this.forgetServer();
       this.denyPending();
     }
 
@@ -2460,15 +2473,18 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         // signal: the turn's — Stop ends a running command (see AgentTurns)
         callTool: async (name, args, { signal } = {}) => {
           const ask =
-            ["run_page_js", "run_browser_js", "close_tab"].includes(name) ||
-            (name === "open_url" && !this.urlAllowed(args.url)) ||
+            this.needsCard(name, args) ||
             (name === "run_command" && chatgpt.commandNeedsApproval(repo, args.command)) ||
             (["write_file", "edit_file"].includes(name) && chatgpt.fileNeedsApproval(repo, args.path));
           if (ask && !(await this.askPermission(name, args))) {
             return text("The user declined. Ask how to proceed instead.");
           }
           if (handlers[name]) {
-            return handlers[name](args);
+            try {
+              return await handlers[name](args);
+            } finally {
+              this.grants.delete(grantKey(name, args)); // the yes was for this call
+            }
           }
           // approved: only then does it run what the policy wouldn't let through
           return text(await chatgpt.callRepoTool(repo, name, args, { approved: ask, signal }));
@@ -2521,6 +2537,20 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           if (!handler) {
             throw new Error(`Unknown tool ${name}`);
           }
+          // Claude Code asks about these calls first (the approve tool) — but
+          // whether it asks is its decision, and its settings'. So the yes is
+          // checked here as well: a call nobody allowed gets its card now.
+          if (this.needsCard(name, args)) {
+            const key = grantKey(name, args);
+            if (!this.grants.has(key) && !(await this.askPermission(`mcp__zen__${name}`, args))) {
+              return text("The user declined. Ask how to proceed instead.");
+            }
+            try {
+              return await handler(args);
+            } finally {
+              this.grants.delete(key); // the yes was for this call
+            }
+          }
           return handler(args);
         },
       });
@@ -2528,6 +2558,17 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         args: async () => {
           await IOUtils.makeDirectory(ATTACH_DIR(), { ignoreExisting: true });
           const roots = realRoots([KitAI.findRepo(), KitAI.findUserDir()]);
+          // The server's address and token go to Claude Code in a file only this
+          // user can read, not on the command line, which every process on the
+          // computer can see. Made empty and closed first, then filled.
+          this.mcpConfig = PathUtils.join(PathUtils.profileDir, `kit-ai-mcp-${new URL(this.server.url).port}.json`);
+          await IOUtils.writeUTF8(this.mcpConfig, "");
+          await IOUtils.setPermissions(this.mcpConfig, 0o600);
+          await IOUtils.writeJSON(this.mcpConfig, {
+            mcpServers: {
+              zen: { type: "http", url: this.server.url, headers: { Authorization: `Bearer ${this.server.token}` } },
+            },
+          });
           const args = [
             "-p",
             "--input-format",
@@ -2537,11 +2578,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
             "--verbose",
             "--include-partial-messages",
             "--mcp-config",
-            JSON.stringify({
-              mcpServers: {
-                zen: { type: "http", url: this.server.url, headers: { Authorization: `Bearer ${this.server.token}` } },
-              },
-            }),
+            this.mcpConfig,
             "--strict-mcp-config",
             // not acceptEdits and whatever the user's settings default to: every
             // write and every command that isn't plainly read-only is asked about
@@ -2796,15 +2833,23 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       }
     }
 
+    // Whether a browser tool call needs the user's yes: the tools that act
+    // rather than read, and open_url for an address the assistant composed.
+    // Both ways the assistant runs go by this — createAgent for the in-browser
+    // agents, the MCP server for Claude Code (ensureSession).
+    needsCard(name, args) {
+      return ["run_page_js", "run_browser_js", "close_tab"].includes(name) || (name === "open_url" && !this.urlAllowed(args.url));
+    }
+
     // The tab a tool call acts on: the one its approval card showed, when there
     // was a card (see TAB_TOOLS); otherwise the tab the call names.
     grantedTab(name, input) {
       const key = grantKey(name, input);
       const grant = this.grants.get(key);
-      if (!grant) {
+      this.grants.delete(key);
+      if (!grant?.tab) {
         return tabAt(input.tab);
       }
-      this.grants.delete(key);
       if (!grant.tab.isConnected || grant.tab.closing) {
         throw new Error("The tab this was allowed for has been closed");
       }
@@ -2857,8 +2902,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           if (all) {
             this.trusted.add(kind);
           }
-          if (allowed && pinned) {
-            this.grants.set(grantKey(name, input), pinned);
+          if (allowed && CARD_TOOLS.includes(name)) {
+            this.grants.set(grantKey(name, input), pinned || {});
           }
           card.classList.add(allowed ? "allowed" : "denied");
           buttons.replaceChildren(el("span", null, label || (allowed ? "Allowed" : "Denied")));

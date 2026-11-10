@@ -92,8 +92,11 @@ practice:
   not a guarantee: read what a script does before you allow it, and don't use
   "Allow all" while working with pages you don't trust.
 - With Claude Code, the browser tools are served over MCP on 127.0.0.1 only,
-  behind a one-time token, and the browser itself doesn't go online. With
-  ChatGPT and API keys, the browser sends the model requests itself.
+  behind a one-time token, and the browser itself doesn't go online. The token
+  reaches Claude Code in a file only you can read, not on the command line,
+  and the server itself asks for your yes before a tool that acts — whatever
+  Claude Code was set to allow. With ChatGPT and API keys, the browser sends
+  the model requests itself.
 
 Only enable scripts written by you or the assistant, and read them first.
 
