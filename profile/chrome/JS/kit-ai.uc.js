@@ -1456,9 +1456,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       if (!accounts[this.provider]) {
         this.provider = connected[0] || "";
       }
-      for (const p of connected) {
-        this.loadModels(p);
-      }
+      this.loadConnectedModels();
       this.updateHeader();
       this.updateModel();
       if (!connected.length) {
@@ -1720,6 +1718,18 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     }
 
     // ---- models
+
+    // The lists come from the providers over the network, so they are fetched
+    // once the panel is on screen (onShow) — not by every window at startup,
+    // whether the assistant is used there or not.
+    loadConnectedModels() {
+      if (!this.wasShown) {
+        return;
+      }
+      for (const p of PROVIDER_ORDER.filter(provider => this.accounts[provider])) {
+        this.loadModels(p);
+      }
+    }
 
     async loadModels(provider) {
       if (this.modelLists[provider]) {
@@ -2127,7 +2137,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     }
 
     onShow() {
+      this.wasShown = true; // the layout calls this before it counts the panel as shown
       this.updateContext();
+      this.loadConnectedModels();
       if (this.view === "chat") {
         this.input.focus();
       }
