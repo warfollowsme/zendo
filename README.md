@@ -73,8 +73,9 @@ practice:
   running shell commands outside a short list,
   or editing files anywhere else (the full list is in
   [AI assistant](#ai-assistant)). The question shows the file and what goes
-  into it. "Allow all in this chat" turns these questions off until the chat
-  ends.
+  into it. "Allow all …" on a card turns off the questions about that one
+  kind of action — commands, page scripts, browser scripts, file changes,
+  addresses — until the chat ends.
 - **Without asking**, it reads tabs and pages, takes screenshots, edits CSS and
   other files that don't run as code (themes, mods, site styles, `AGENTS.md`)
   in the base and your personal layer, and commits them. It can't edit `.git/`
@@ -223,7 +224,7 @@ microphone access the first time.
 While an approval card is waiting, a spoken "allow" or "deny" answers it
 instead ("yes", "no", "разреши", "нет"…; your own words:
 `kit.ai.voice-allow` and `kit.ai.voice-deny`). Only a phrase that is nothing
-but the answer counts, and "Allow all in this chat" is never taken by voice.
+but the answer counts, and "Allow all …" is never taken by voice.
 The microphone hears everything around it, a video playing on a page too, so
 start listening when the room is yours. With the keyboard: Tab to the card,
 then Enter allows and Esc denies.
@@ -247,7 +248,8 @@ anything in `bin/`, shell commands other than
 `git [-C <base or personal layer>] status|diff|log|add|commit`, and `ls` and
 `grep` inside the base and the personal layer, as well as edits to files
 outside the base and the personal layer, also require confirmation in the
-panel. You can click "Allow all in this chat".
+panel. A card's "Allow all …" button covers its kind of action for the rest
+of the chat.
 
 The commands on that list are checked word by word, not by how they start
 (`resources/kit-ai/policy.sys.mjs`, tested by `bin/check`): an option outside

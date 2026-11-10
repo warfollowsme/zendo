@@ -421,7 +421,7 @@ export function urlAllowed(url, { userTexts = [], seen = new Set(), searchUrl = 
 // Voice input while an approval card waits: a phrase → "allow", "deny" or null
 // (not an answer — it goes to the message field as usual). Only a phrase that
 // is nothing but the answer counts: "yes, but show me the file first" is not a
-// yes. "Allow all in this chat" has no spoken form on purpose.
+// yes. "Allow all …" has no spoken form on purpose.
 // English and Russian out of the box; extra holds more words per answer
 // (the prefs kit.ai.voice-allow / kit.ai.voice-deny, see user.js).
 const SPOKEN = {

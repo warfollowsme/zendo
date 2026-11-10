@@ -798,6 +798,19 @@ After editing run bin/check, then commit: in the base git add … && git commit 
   }
   const APPROVAL_SHOWN = 100000; // characters of one section; the card says when there are more
 
+  // "Allow all …" on a card covers one kind of action, the card's own, until
+  // the chat ends: a yes to every command is not a yes to scripts in the
+  // browser window. [tools, the button's text]
+  const APPROVAL_KINDS = [
+    [["run_command", "Bash"], "Allow all commands"],
+    [["run_page_js"], "Allow all page scripts"],
+    [["run_browser_js"], "Allow all browser scripts"],
+    [["write_file", "edit_file", "Write", "Edit", "MultiEdit", "NotebookEdit"], "Allow all file changes"],
+    [["open_url"], "Allow all addresses"],
+    [["close_tab"], "Allow closing tabs"],
+  ];
+  const approvalKind = name => APPROVAL_KINDS.find(([tools]) => tools.includes(name))?.[1] || `Allow all “${name}”`;
+
   // Tools that act on one tab. Their approval card may wait for an hour, and
   // "tab 5" or "the active tab" can be another page by then. So the card
   // remembers the tab it showed (Panel.grants), and the allowed call runs on
@@ -1043,7 +1056,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
   class Panel {
     constructor() {
       this.busy = false;
-      this.trustAll = false;
+      this.trusted = new Set(); // kinds of action allowed for the whole chat (APPROVAL_KINDS)
       this.server = null;
       this.session = null;
       this.agent = null;
@@ -2184,7 +2197,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       this.session = this.server = this.agent = null;
       this.savedAgent = null;
       this.resumeId = null;
-      this.trustAll = false;
+      this.trusted.clear();
       this.grants.clear();
       this.seenUrls.clear();
       this.chips.clear();
@@ -2802,7 +2815,8 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     }
 
     askPermission(toolName, input) {
-      if (this.trustAll) {
+      const kind = approvalKind(toolName.replace(/^mcp__zen__/, ""));
+      if (this.trusted.has(kind)) {
         return Promise.resolve(true);
       }
       this.toggle(true);
@@ -2841,7 +2855,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           clearTimeout(timer);
           this.pending.delete(entry);
           if (all) {
-            this.trustAll = true;
+            this.trusted.add(kind);
           }
           if (allowed && pinned) {
             this.grants.set(grantKey(name, input), pinned);
@@ -2856,7 +2870,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
         const timer = setTimeout(() => done(false, false, "No answer"), KitAI.APPROVAL_TIMEOUT);
         buttons.append(
           this.button("Allow", "Enter on the card, or say “allow” with voice input", () => done(true)),
-          this.button("Allow all in this chat", "", () => done(true, true)),
+          this.button(kind, "In this chat, until it ends: no more questions about this kind of action", () => done(true, true)),
           this.button("Deny", "Esc on the card, or say “deny” with voice input", () => done(false))
         );
         card.append(buttons);
@@ -2889,7 +2903,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
 
     // Voice input while an approval card waits: a phrase that is nothing but
     // "allow" or "deny" (spokenAnswer in policy.sys.mjs) answers the card that
-    // has waited longest. "Allow all in this chat" stays a button.
+    // has waited longest. "Allow all …" stays a button.
     // true — the phrase was an answer and is used up.
     answerBySpeech(phrase) {
       const [entry] = this.pending;
