@@ -299,7 +299,9 @@ base and the personal layer; they may not change `zen-source/`, `utils/`,
 `program/` or `.git/`.
 
 The panel header has new chat, history (conversations are stored in the Zen
-profile, `kit-ai-chats/`, and resume where they left off), the accounts menu
+profile, `kit-ai-chats/`, and resume where they left off; a chat in a private
+window is not stored, and its attached files go when it ends — Claude Code
+still keeps its own session log in `~/.claude`, as in a terminal), the accounts menu
 (sign out of any of them or connect another) and ↻. Below the input field are
 the model and the reasoning effort; the model can be changed mid-conversation,
 while switching to another connection method starts a new chat. Files are

@@ -14,6 +14,10 @@
 
   const HTML = "http://www.w3.org/1999/xhtml";
   const { Subprocess } = ChromeUtils.importESModule("resource://gre/modules/Subprocess.sys.mjs");
+  const { PrivateBrowsingUtils } = ChromeUtils.importESModule("resource://gre/modules/PrivateBrowsingUtils.sys.mjs");
+  // A private window leaves nothing of its chats in the profile: no history
+  // entry, no attached files, no chat to reopen after a restart.
+  const PRIVATE = PrivateBrowsingUtils.isWindowPrivate(window);
   const PREF_RESUME = "kit.ai.resume-session"; // id of the chat to open after a restart
   const PREF_PROVIDER = "kit.ai.provider"; // "claude" | "chatgpt" | "anthropic" | "openai" | "compatible"
   const CHATGPT_URL = "chrome://userchrome/content/kit-ai/chatgpt.sys.mjs";
@@ -2161,6 +2165,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     newChatRecord() {
       return {
         id: Services.uuid.generateUUID().toString().slice(1, 9),
+        ...(PRIVATE ? { unsaved: true } : {}), // started in a private window: nothing of it is kept
         title: "",
         provider: this.provider,
         created: Date.now(),
@@ -2177,7 +2182,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
 
     async saveChat() {
       const chat = this.chat;
-      if (!chat.transcript.some(e => e.role === "user")) {
+      if (PRIVATE || !chat.transcript.some(e => e.role === "user")) {
         return;
       }
       chat.updated = Date.now();
@@ -2191,11 +2196,16 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       await chatStore.save(chat).catch(e => console.error("kit-ai: save chat", e));
     }
 
-    // The file with the MCP server's token (ensureSession) goes with the server.
+    // The file with the MCP server's token (ensureSession) goes with the server;
+    // so do the files attached to a chat started in a private window (a saved
+    // chat opened there keeps its own).
     forgetServer() {
       if (this.mcpConfig) {
         IOUtils.remove(this.mcpConfig, { ignoreAbsent: true }).catch(() => {});
         this.mcpConfig = null;
+      }
+      if (this.chat?.unsaved) {
+        IOUtils.remove(PathUtils.join(ATTACH_DIR(), this.chat.id), { recursive: true, ignoreAbsent: true }).catch(() => {});
       }
     }
 
@@ -2335,6 +2345,9 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       if (!this.chat.title) {
         this.chat.title = (message || files[0].name).replace(/\s+/g, " ").slice(0, 80);
       }
+      if (PRIVATE && !this.chat.transcript.length) {
+        this.note("Private window: this chat is not saved.");
+      }
       this.userMessage(text, files);
       this.scroll(true);
       this.setBusy(true);
@@ -2399,7 +2412,7 @@ After editing run bin/check, then commit: in the base git add … && git commit 
           console.error("kit-ai: bin/sync", e);
         }
       }
-      if (this.chat.transcript.length) {
+      if (this.chat.transcript.length && !PRIVATE) {
         Services.prefs.setStringPref(PREF_RESUME, this.chat.id);
       }
       this.session?.stop();
