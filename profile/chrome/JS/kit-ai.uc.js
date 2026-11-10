@@ -394,8 +394,26 @@ After editing run bin/check, then commit: in the base git add … && git commit 
     return [{ type: "image", data, mimeType: "image/jpeg" }];
   }
 
+  // "" when the assistant may see the page in this tab — a web page or an
+  // internal one without passwords and settings; otherwise why not. The same
+  // rule as for reading the page (pageQuery): a picture of about:logins tells
+  // as much as its text.
+  function pageRefusal(browser) {
+    const scheme = browser.currentURI?.scheme;
+    const spec = browser.currentURI?.spec || "";
+    const shared = ["http", "https", "file"].includes(scheme) || (scheme === "about" && !PRIVATE_PAGES.test(spec));
+    return shared ? "" : `Page ${spec} is not shared with the assistant`;
+  }
+
   async function screenshot({ target = "page", tab }) {
     if (target === "browser") {
+      // the window shows its pages too: the active tab and, in a split view, its neighbours
+      for (const shown of gBrowser.tabs.filter(t => t.selected || t.linkedBrowser?.docShellIsActive)) {
+        const refusal = pageRefusal(shown.linkedBrowser);
+        if (refusal) {
+          throw new Error(`${refusal}, and it is on screen — switch to another tab for a screenshot of the browser window`);
+        }
+      }
       const width = window.innerWidth;
       const height = window.innerHeight;
       const bitmap = await window.browsingContext.currentWindowGlobal.drawSnapshot(
@@ -406,6 +424,10 @@ After editing run bin/check, then commit: in the base git add … && git commit 
       return canvasToImage(ctx => ctx.drawImage(bitmap, 0, 0, ctx.canvas.width, ctx.canvas.height), width, height);
     }
     const t = tabAt(tab);
+    const refusal = pageRefusal(t.linkedBrowser);
+    if (refusal) {
+      throw new Error(refusal);
+    }
     const global = t.linkedBrowser.browsingContext?.currentWindowGlobal;
     if (!global) {
       throw new Error("The tab is not loaded — make it active first (select_tab)");
